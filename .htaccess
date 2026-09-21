@@ -1,0 +1,3 @@
+# ปิดการเข้าถึงโฟลเดอร์ภายในโดยตรง
+RedirectMatch 403 ^/?.*/(config|storage|src|migrations|views)/.*$
+Options -Indexes

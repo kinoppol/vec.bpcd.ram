@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#FAF7F4;}
+  a{color:#7A1E2C;}
+  a:hover{color:#4E1119;}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:#D9CFC8;border-radius:4px;}
+</style>
+</helmet>
+
+<sc-if value="{{ showLogin }}" hint-placeholder-val="{{ true }}">
+<div style="min-height:100vh;width:100%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 30% 20%,#2A1418,#150B0D 65%);font-family:'Kanit',sans-serif;padding:24px;box-sizing:border-box;">
+  <div style="width:100%;max-width:420px;background:#FAF7F4;border-radius:20px;padding:40px 36px;box-shadow:0 30px 80px rgba(0,0,0,0.45);">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:10px;margin-bottom:28px;">
+      <img src="assets/vec-logo.png" alt="ตราสำนักงานคณะกรรมการการอาชีวศึกษา" style="width:76px;height:76px;object-fit:contain;"/>
+      <div style="text-align:center;">
+        <div style="font-size:12px;color:#8A8F98;letter-spacing:.04em;">สำนักพัฒนาสมรรถนะครูและบุคลากรอาชีวศึกษา (สสอ.)</div>
+        <div style="font-size:20px;font-weight:600;color:#1F1B1A;margin-top:4px;">ระบบบริหารห้องพักและห้องประชุม</div>
+      </div>
+    </div>
+    <div style="font-size:13px;color:#5B5450;text-align:center;margin-bottom:22px;">เลือกบทบาทเพื่อเข้าสู่ระบบ (ต้นแบบสำหรับสาธิต)</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <sc-for list="{{ roleCards }}" as="rc" hint-placeholder-count="4">
+        <div style="border:1px solid #E6DED8;border-radius:12px;padding:14px 16px;cursor:pointer;display:flex;align-items:center;gap:12px;background:#fff;transition:background .15s;" style-hover="background:#F5E7E9;border-color:#D9A9AF;" onClick="{{ rc.onClick }}">
+          <div style="width:38px;height:38px;border-radius:10px;background:#F5E7E9;color:#7A1E2C;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex-shrink:0;">{{ rc.initial }}</div>
+          <div style="min-width:0;">
+            <div style="font-size:14px;font-weight:600;color:#1F1B1A;">{{ rc.title }}</div>
+            <div style="font-size:12px;color:#8A8F98;">{{ rc.subtitle }}</div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showApp }}" hint-placeholder-val="{{ false }}">
+<div style="height:100vh;width:100%;display:flex;font-family:'Kanit',sans-serif;color:#1F1B1A;overflow:hidden;background:#FAF7F4;">
+
+  <div style="width:252px;flex-shrink:0;background:#201316;color:#F3EDEA;display:flex;flex-direction:column;padding:22px 16px;box-sizing:border-box;">
+    <div style="display:flex;align-items:center;gap:10px;padding:0 6px 20px;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:16px;">
+      <img src="assets/vec-logo.png" alt="ตราสัญลักษณ์" style="width:34px;height:34px;object-fit:contain;flex-shrink:0;"/>
+      <div style="min-width:0;">
+        <div style="font-size:12px;font-weight:600;line-height:1.3;">ระบบบริหารที่พัก สสอ.</div>
+        <div style="font-size:10.5px;color:#B79FA3;">สอศ.</div>
+      </div>
+    </div>
+    <div style="font-size:10.5px;color:#B79FA3;text-transform:uppercase;letter-spacing:.06em;padding:0 8px 8px;">{{ roleLabel }}</div>
+    <div style="display:flex;flex-direction:column;gap:4px;flex:1;">
+      <sc-for list="{{ navItems }}" as="item" hint-placeholder-count="4">
+        <div onClick="{{ item.onClick }}" style="{{ item.style }}">{{ item.label }}</div>
+      </sc-for>
+    </div>
+    <div onClick="{{ logout }}" style="margin-top:12px;padding:10px 12px;border-radius:10px;font-size:12.5px;color:#D9A9AF;cursor:pointer;border-top:1px solid rgba(255,255,255,0.1);padding-top:16px;" style-hover="color:#fff;">ออกจากระบบ / สลับบทบาท</div>
+  </div>
+
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+    <div style="height:60px;flex-shrink:0;border-bottom:1px solid #E6DED8;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 28px;box-sizing:border-box;">
+      <div style="font-size:16px;font-weight:600;">{{ pageTitle }}</div>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:11.5px;color:#8A8F98;background:#F7F3EE;border:1px solid #E6DED8;border-radius:20px;padding:5px 12px;">ค่าตอบแทน AI ต่อรายการ: {{ costPerAction }} บาท</div>
+        <div style="width:32px;height:32px;border-radius:50%;background:#F5E7E9;color:#7A1E2C;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;">{{ roleInitial }}</div>
+      </div>
+    </div>
+
+    <div style="flex:1;overflow-y:auto;padding:28px;box-sizing:border-box;">
+
+      <sc-if value="{{ isExecDashboard }}" hint-placeholder-val="{{ false }}">
+        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:20px;">
+          <sc-for list="{{ execKpis }}" as="k" hint-placeholder-count="4">
+            <div style="background:#fff;border:1px solid #E6DED8;border-radius:14px;padding:18px 20px;">
+              <div style="font-size:12px;color:#8A8F98;margin-bottom:8px;">{{ k.label }}</div>
+              <div style="font-size:26px;font-weight:700;color:#1F1B1A;">{{ k.value }}</div>
+              <div style="font-size:11.5px;color:{{ k.deltaColor }};margin-top:4px;">{{ k.delta }}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:20px;">
+          <div style="background:#fff;border:1px solid #E6DED8;border-radius:14px;padding:22px;">
+            <div style="font-size:14px;font-weight:600;margin-bottom:18px;">อัตราการเข้าพักรายเดือน</div>
+            <div style="display:flex;align-items:flex-end;gap:10px;height:150px;">
+              <sc-for list="{{ monthlyBars }}" as="b" hint-placeholder-count="6">
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;">
+                  <div style="width:100%;background:#F5E7E9;border-radius:6px 6px 0 0;position:relative;height:120px;display:flex;align-items:flex-end;">
+                    <div style="width:100%;background:#7A1E2C;border-radius:6px 6px 0 0;height:{{ b.h }}%;"></div>
+                  </div>
+                  <div style="font-size:11px;color:#8A8F98;">{{ b.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="background:#fff;border:1px solid #E6DED8;border-radius:14px;padding:22px;">
+            <div style="font-size:14px;font-weight:600;margin-bottom:16px;">อัตราการใช้งานตามอาคาร</div>
+            <div style="display:flex;flex-direction:column;gap:16px;">
+              <sc-for list="{{ buildingOcc }}" as="bo" hint-placeholder-count="3">
+                <div>
+                  <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:6px;"><span>{{ bo.name }}</span><span style="color:#8A8F98;">{{ bo.pctLabel }}</span></div>
+                  <div style="height:8px;background:#F0EAE6;border-radius:5px;overflow:hidden;"><div style="height:100%;background:#7A1E2C;width:{{ bo.pct }}%;"></div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #E6DED8;border-radius:14px;padding:22px;">
+          <div style="font-size:14px;font-weight:600;margin-bottom:14px;">โครงการที่เข้าพักวันนี้</div>
+          <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:10px 0;border-bottom:1px solid #E6DED8;font-size:12px;color:#8A8F98;">
+            <div>โครงการ</div><div>อาคาร</div><div>ผู้เข้าพัก</div><div>สถานะ</div>
+          </div>
+          <sc-for list="{{ todayProjects }}" as="p" hint-placeholder-count="5">
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;padding:12px 0;border-bottom:1px solid #F0EAE6;font-size:13px;align-items:center;">
+              <div style="font-weight:500;">{{ p.name }}</div><div style="color:#5B5450;">{{ p.building }}</div><div style="color:#5B5450;">{{ p.guests }} คน</div>
+              <div><span style="background:{{ p.tint }};color:{{ p.color }};font-size:11.5px;padding:3px 10px;border-radius:20px;">{{ p.status }}</span></div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isReqList }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;gap:8px;margin-bottom:18px;">
+          <sc-for list="{{ reqFilters }}" as="f" hint-placeholder-count="4">
+            <div onClick="{{ f.onClick }}" style="{{ f.style }}">{{ f.label }}</div>
+          </sc-for>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <sc-for list="{{ requests }}" as="r" hint-placeholder-count="4">
+            <div style="background:#fff;border:1px solid #E6DED8;border-radius:14px;padding:18px 20px;">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
+                <div style="min-width:0;">
+                  <div style="font-size:14.5px;font-weight:600;">{{ r.project }}</div>
+                  <div style="font-size:12.5px;color:#5B5450;margin-top:4px;">{{ r.dates }} · {{ r.room }} · ผู้เข้าพัก {{ r.guests }} คน</div>
+                  <div style="font-size:12px;color:#8A8F98;margin-top:2px;">ยื่นโดย {{ r.owner }}</div>
+                </div>
+                <span style="background:{{ r.tint }};color:{{ r.color }};font-size:11.5px;padding:4px 12px;border-radius:20px;white-space:nowrap;">{{ r.status }}</span>
+              </div>
+              <sc-if value="{{ r.hasConflict }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top:12px;background:#F6E1E4;color:#A32638;font-size:12px;padding:8px 12px;border-radius:8px;">⚠ ทับซ้อนกับการจองของ "{{ r.conflictWith }}" ในช่วงเวลาเดียวกัน — แจ้งเตือนเจ้าของโครงการทั้งสองแล้ว</div>
+              </sc-if>
+              <div style="display:flex;gap:8px;margin-top:14px;">
+                <div style="font-size:12.5px;padding:7px 16px;border-radius:8px;background:#7A1E2C;color:#fff;cursor:pointer;">ตรวจสอบความพร้อม</div>
+                <div style="font-size:12.5px;padding:7px 16px;border-radius:8px;border:1px solid #E6DED8;color:#5B5450;cursor:pointer;">ดูรายละเอียด</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isRoomStatus }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:12px;">
+          <div style="display:flex;gap:8px;">
+            <sc-for list="{{ buildingTabs }}" as="t" hint-placeholder-count="3">
+              <div onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }}</div>
+            </sc-for>
+          </div>
+          <div style="display:flex;gap:14px;font-size:12px;color:#5B5450;">
+            <sc-for list="{{ statusLegend }}" as="l" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:6px;"><span style="width:9px;height:9px;border-radius:50%;background:{{ l.color }};display:inline-block;"></span>{{ l.label }}</div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px;">
+          <sc-for list="{{ rooms }}" as="rm" hint-placeholder-count="18">
+            <div style="background:#fff;border:1px solid #E6DED8;border-left:4px solid {{ rm.color }};border-radius:10px;padding:12px 14px;">
+              <div style="font-size:14px;font-weight:600;">{{ rm.no }}</div>
+              <div style="font-size:11px;color:#8A8F98;margin:2px 0 8px;">ชั้น {{ rm.floor }} · {{ rm.beds }} เตียง</div>
+              <div style="font-size:11px;color:{{ rm.color }};font-weight:500;">{{ rm.status }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isGuestAssign }}" hint-placeholder-val="{{ false }}">
+        <div style="background:#fff;border:1px solid #E6DED8;border-radius:14px;padding:22px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+          <div>
+            <div style="font-size:15px;font-weight:600;">โครงการอบรมหลักสูตรผู้บริหารสถานศึกษา รุ่น 12</div>
+            <div style="font-size:12.5px;color:#8A8F98;margin-top:4px;">อาคาร 2 · 8–11 ต.ค. 2569 · ผู้เข้าพัก 24 คน</div>
+          </div>
+          <div style="font-size:12.5px;padding:8px 16px;border-radius:8px;background:#7A1E2C;color:#fff;cursor:pointer;">นำเข้ารายชื่อ (Excel)</div>
+        </div>
+        <div style="background:#fff;border:1px solid #E6DED8;border-radius:14px;overflow:hidden;">
+          <div style="display:grid;grid-template-columns:1.6fr .8fr 1fr .9fr 1.1fr 1.4fr;padding:12px 20px;background:#F7F3EE;font-size:12px;color:#8A8F98;">
+            <div>ชื่อ–สกุล</div><div>เพศ</div><div>ประเภท</div><div>ห้องที่ระบุ</div><div>ห้องที่จัดจริง</div><div>หมายเหตุ/เงื่อนไข</div>
+          </div>
+          <sc-for list="{{ guests }}" as="g" hint-placeholder-count="6">
+            <div style="display:grid;grid-template-columns:1.6fr .8fr 1fr .9fr 1.1fr 1.4fr;padding:14px 20px;border-top:1px solid #F0EAE6;font-size:13px;align-items:center;">
+              <div style="font-weight:500;">{{ g.name }}</div>
+              <div style="color:#5B5450;">{{ g.gender }}</div>
+              <div style="color:#5B5450;">{{ g.type }}</div>
+              <div style="color:#5B5450;">{{ g.roomRequested }}</div>
+              <div style="font-weight:500;">{{ g.roomAssigned }}</div>
+              <div style="font-size:12px;color:#8A8F98;">{{ g.note }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isCheckin }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;justify-content:center;">
+          <div style="width:100%;max-width:380px;background:#0F0A0A;border-radius:36px;padding:14px;box-shadow:0 24px 60px rgba(0,0,0,0.25);">
+            <div style="background:#FAF7F4;border-radius:26px;overflow:hidden;display:flex;flex-direction:column;height:660px;">
+              <div style="background:#7A1E2C;color:#fff;padding:18px 20px;">
+                <div style="font-size:11px;opacity:.8;">หน้างาน · Check-in / Check-out</div>
+                <div style="font-size:15px;font-weight:600;margin-top:4px;">อาคาร 2 · โครงการรุ่น 12</div>
+              </div>
+              <div style="padding:14px 16px;border-bottom:1px solid #E6DED8;">
+                <div style="background:#fff;border:1px solid #E6DED8;border-radius:10px;padding:10px 14px;font-size:13px;color:#8A8F98;">ค้นหาด้วยเลขที่จอง / QR / เลขบัตรประชาชน</div>
+              </div>
+              <div style="flex:1;overflow-y:auto;padding:6px 14px;">
+                <sc-for list="{{ checkinGuests }}" as="cg" hint-placeholder-count="5">
+                  <div style="background:#fff;border:1px solid #E6DED8;border-radius:12px;padding:12px 14px;margin:8px 0;display:flex;justify-content:space-between;align-items:center;">
+                    <div>
+                      <div style="font-size:13.5px;font-weight:600;">{{ cg.name }}</div>
+                      <div style="font-size:11.5px;color:#8A8F98;">ห้อง {{ cg.room }} · {{ cg.keyStatus }}</div>
+                    </div>
+                    <span style="font-size:11px;padding:5px 12px;border-radius:20px;background:{{ cg.tint }};color:{{ cg.color }};">{{ cg.status }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:flex;gap:10px;padding:14px 16px;border-top:1px solid #E6DED8;background:#fff;">
+                <div style="flex:1;text-align:center;background:#7A1E2C;color:#fff;padding:14px;border-radius:12px;font-size:13.5px;font-weight:600;">Check-in</div>
+                <div style="flex:1;text-align:center;border:1px solid #E6DED8;color:#5B5450;padding:14px;border-radius:12px;font-size:13.5px;font-weight:600;">Check-out</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isOwnerBook }}" hint-placeholder-val="{{ false }}">
+        <div style="max-width:720px;background:#fff;border:1px solid #E6DED8;border-radius:14px;padding:28px;display:flex;flex-direction:column;gap:18px;">
+          <div>
+            <div style="font-size:11.5px;color:#8A8F98;margin-bottom:6px;">ชื่อโครงการ</div>
+            <div style="border:1px solid #E6DED8;border-radius:8px;padding:11px 14px;font-size:13.5px;color:#1F1B1A;">โครงการอบรมหลักสูตรครูอาชีวศึกษามือใหม่ รุ่น 5</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div><div style="font-size:11.5px;color:#8A8F98;margin-bottom:6px;">วันที่จัดโครงการ</div><div style="border:1px solid #E6DED8;border-radius:8px;padding:11px 14px;font-size:13.5px;">12–15 พ.ย. 2569</div></div>
+            <div><div style="font-size:11.5px;color:#8A8F98;margin-bottom:6px;">ห้องประชุมที่ต้องการ</div><div style="border:1px solid #E6DED8;border-radius:8px;padding:11px 14px;font-size:13.5px;">ห้องประชุมใหญ่ อาคาร 1</div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+            <div><div style="font-size:11.5px;color:#8A8F98;margin-bottom:6px;">ผู้เข้าพักชาย</div><div style="border:1px solid #E6DED8;border-radius:8px;padding:11px 14px;font-size:13.5px;">18 คน</div></div>
+            <div><div style="font-size:11.5px;color:#8A8F98;margin-bottom:6px;">ผู้เข้าพักหญิง</div><div style="border:1px solid #E6DED8;border-radius:8px;padding:11px 14px;font-size:13.5px;">22 คน</div></div>
+            <div><div style="font-size:11.5px;color:#8A8F98;margin-bottom:6px;">จำนวนคืนที่พัก</div><div style="border:1px solid #E6DED8;border-radius:8px;padding:11px 14px;font-size:13.5px;">3 คืน</div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
+            <div><div style="font-size:11.5px;color:#8A8F98;margin-bottom:6px;">ห้องผู้เข้าอบรม</div><div style="border:1px solid #E6DED8;border-radius:8px;padding:11px 14px;font-size:13.5px;">20 ห้อง</div></div>
+            <div><div style="font-size:11.5px;color:#8A8F98;margin-bottom:6px;">ห้องวิทยากร</div><div style="border:1px solid #E6DED8;border-radius:8px;padding:11px 14px;font-size:13.5px;">2 ห้อง</div></div>
+            <div><div style="font-size:11.5px;color:#8A8F98;margin-bottom:6px;">ห้องกรรมการดำเนินโครงการ</div><div style="border:1px solid #E6DED8;border-radius:8px;padding:11px 14px;font-size:13.5px;">3 ห้อง</div></div>
+          </div>
+          <div style="background:#F7F3EE;border-radius:10px;padding:14px 16px;font-size:12.5px;color:#5B5450;">หมายเหตุ: ระบุแยกชาย–หญิง ยกเว้นกรณีคู่สมรส ระบบจะตรวจสอบความซ้อนทับของห้องประชุมและที่พักโดยอัตโนมัติหลังกดบันทึก</div>
+          <div onClick="{{ goOwnerStatus }}" style="align-self:flex-start;background:#7A1E2C;color:#fff;padding:12px 28px;border-radius:10px;font-size:13.5px;font-weight:600;cursor:pointer;">บันทึกจองเบื้องต้น</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isOwnerStatus }}" hint-placeholder-val="{{ false }}">
+        <div style="background:#fff;border:1px solid #E6DED8;border-radius:14px;padding:26px 28px;margin-bottom:20px;">
+          <div style="font-size:15px;font-weight:600;margin-bottom:4px;">โครงการอบรมหลักสูตรครูอาชีวศึกษามือใหม่ รุ่น 5</div>
+          <div style="font-size:12.5px;color:#8A8F98;margin-bottom:24px;">12–15 พ.ย. 2569 · ห้องประชุมใหญ่ อาคาร 1 · 40 คน</div>
+          <div style="display:flex;align-items:center;">
+            <sc-for list="{{ stepperSteps }}" as="st" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;flex:1;">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:8px;min-width:90px;">
+                  <div style="width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;background:{{ st.bg }};color:{{ st.fg }};">{{ st.n }}</div>
+                  <div style="font-size:12px;text-align:center;color:{{ st.textColor }};">{{ st.label }}</div>
+                </div>
+                <sc-if value="{{ st.hasLine }}" hint-placeholder-val="{{ true }}"><div style="height:2px;flex:1;background:{{ st.lineColor }};margin:0 4px;margin-bottom:24px;"></div></sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="background:#F6E1E4;color:#A32638;border-radius:12px;padding:16px 20px;font-size:13px;">⚠ พบการจองเบื้องต้นซ้อนช่วงเวลาเดียวกันจากโครงการ "อบรมนักเรียนทุนพระราชทาน รุ่น 3" — รอผู้ดูแลตรวจสอบและแจ้งผลก่อนดำเนินการขั้นตอนอนุมัติ</div>
+      </sc-if>
+
+      <sc-if value="{{ isAiSettings }}" hint-placeholder-val="{{ false }}">
+        <div style="background:#fff;border:1px solid #E6DED8;border-radius:14px;padding:22px;margin-bottom:20px;">
+          <div style="font-size:14px;font-weight:600;margin-bottom:16px;">การเชื่อมต่อผู้ให้บริการ AI ภายนอก</div>
+          <sc-for list="{{ apiConnections }}" as="c" hint-placeholder-count="3">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid #F0EAE6;">
+              <div>
+                <div style="font-size:13.5px;font-weight:500;">{{ c.name }}</div>
+                <div style="font-size:11.5px;color:#8A8F98;margin-top:2px;">{{ c.keyMasked }}</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;">
+                <span style="font-size:11.5px;padding:4px 12px;border-radius:20px;background:{{ c.tint }};color:{{ c.color }};">{{ c.status }}</span>
+                <div style="font-size:12px;padding:7px 14px;border-radius:8px;border:1px solid #E6DED8;color:#5B5450;cursor:pointer;">ทดสอบการเชื่อมต่อ</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="background:#fff;border:1px solid #E6DED8;border-radius:14px;padding:22px;margin-bottom:20px;">
+          <div style="font-size:14px;font-weight:600;margin-bottom:6px;">ค่าตอบแทนโดยประมาณต่อการดำเนินการผ่าน AI</div>
+          <div style="font-size:12px;color:#8A8F98;margin-bottom:16px;">ใช้สำหรับประเมินค่าใช้จ่าย/จัดงบประมาณสนับสนุนจาก สสอ. ค่าเริ่มต้น 5 บาทต่อรายการ</div>
+          <div style="display:flex;align-items:center;gap:14px;">
+            <div style="border:1px solid #E6DED8;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:600;width:110px;text-align:center;">{{ costPerAction }} บาท</div>
+            <div style="display:flex;gap:8px;">
+              <div onClick="{{ decreaseCost }}" style="width:34px;height:34px;border:1px solid #E6DED8;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;">−</div>
+              <div onClick="{{ increaseCost }}" style="width:34px;height:34px;border:1px solid #E6DED8;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;">+</div>
+            </div>
+            <div style="font-size:12px;color:#8A8F98;">ต่อรายการ ใช้เป็นค่าเริ่มต้นสำหรับทุกประเภทการดำเนินการ</div>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #E6DED8;border-radius:14px;padding:22px;">
+          <div style="font-size:14px;font-weight:600;margin-bottom:14px;">บันทึกการใช้งาน AI (Audit Log)</div>
+          <div style="display:grid;grid-template-columns:1fr 1.4fr 2fr .8fr;padding:10px 0;border-bottom:1px solid #E6DED8;font-size:12px;color:#8A8F98;">
+            <div>วันที่/เวลา</div><div>ผู้ใช้งาน</div><div>การดำเนินการ</div><div>ค่าใช้จ่าย</div>
+          </div>
+          <sc-for list="{{ auditLog }}" as="a" hint-placeholder-count="5">
+            <div style="display:grid;grid-template-columns:1fr 1.4fr 2fr .8fr;padding:11px 0;border-bottom:1px solid #F0EAE6;font-size:12.5px;align-items:center;">
+              <div style="color:#8A8F98;">{{ a.time }}</div><div>{{ a.user }}</div><div style="color:#5B5450;">{{ a.action }}</div><div style="font-weight:500;">{{ a.cost }} บ.</div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isUsers }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+          <div style="font-size:12.5px;padding:8px 16px;border-radius:8px;background:#7A1E2C;color:#fff;cursor:pointer;">+ เพิ่มผู้ใช้งาน</div>
+        </div>
+        <div style="background:#fff;border:1px solid #E6DED8;border-radius:14px;overflow:hidden;">
+          <div style="display:grid;grid-template-columns:1.6fr 1.3fr 1fr .9fr;padding:12px 20px;background:#F7F3EE;font-size:12px;color:#8A8F98;">
+            <div>ชื่อ–สกุล</div><div>หน่วยงาน/กลุ่มงาน</div><div>บทบาท</div><div>สถานะ</div>
+          </div>
+          <sc-for list="{{ users }}" as="u" hint-placeholder-count="6">
+            <div style="display:grid;grid-template-columns:1.6fr 1.3fr 1fr .9fr;padding:13px 20px;border-top:1px solid #F0EAE6;font-size:13px;align-items:center;">
+              <div style="font-weight:500;">{{ u.name }}</div><div style="color:#5B5450;">{{ u.dept }}</div>
+              <div><span style="background:#F5E7E9;color:#7A1E2C;font-size:11.5px;padding:3px 10px;border-radius:20px;">{{ u.role }}</span></div>
+              <div style="color:#2F6B4F;">{{ u.status }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+    </div>
+  </div>
+
+  <div style="position:fixed;bottom:26px;right:26px;display:flex;flex-direction:column;align-items:flex-end;gap:12px;z-index:50;">
+    <sc-if value="{{ chatOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="width:340px;height:440px;background:#fff;border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,0.25);display:flex;flex-direction:column;overflow:hidden;border:1px solid #E6DED8;">
+        <div style="background:#201316;color:#fff;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-size:13px;font-weight:600;">ผู้ช่วย AI สสอ.</div>
+            <div style="font-size:10.5px;color:#B79FA3;">เชื่อมต่อ: OpenRouter</div>
+          </div>
+          <div onClick="{{ toggleChat }}" style="cursor:pointer;font-size:16px;color:#B79FA3;">✕</div>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;">
+          <sc-for list="{{ chatMessages }}" as="m" hint-placeholder-count="2">
+            <div style="max-width:82%;align-self:{{ m.align }};background:{{ m.bg }};color:{{ m.color }};font-size:12.5px;line-height:1.5;padding:9px 13px;border-radius:12px;">{{ m.text }}</div>
+          </sc-for>
+        </div>
+        <div style="font-size:10.5px;color:#8A8F98;padding:0 14px 8px;">การดำเนินการที่เสร็จผ่าน AI จะถูกบันทึกค่าใช้จ่ายประมาณ {{ costPerAction }} บาท/รายการ</div>
+        <div style="display:flex;gap:8px;padding:12px 14px;border-top:1px solid #E6DED8;">
+          <input value="{{ chatInput }}" onChange="{{ setChatInput }}" placeholder="พิมพ์คำสั่งหรือคำถาม..." style="flex:1;border:1px solid #E6DED8;border-radius:20px;padding:9px 14px;font-size:12.5px;font-family:'Kanit',sans-serif;outline:none;"/>
+          <div onClick="{{ sendChat }}" style="background:#7A1E2C;color:#fff;border-radius:20px;padding:9px 16px;font-size:12.5px;cursor:pointer;flex-shrink:0;">ส่ง</div>
+        </div>
+      </div>
+    </sc-if>
+    <div onClick="{{ toggleChat }}" style="width:56px;height:56px;border-radius:50%;background:#7A1E2C;color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer;box-shadow:0 12px 30px rgba(122,30,44,0.5);">AI</div>
+  </div>
+
+</div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;costPerAction&quot;:{&quot;editor&quot;:&quot;number&quot;,&quot;default&quot;:5,&quot;tsType&quot;:&quot;number&quot;,&quot;min&quot;:1,&quot;max&quot;:50,&quot;unit&quot;:&quot;บาท&quot;,&quot;section&quot;:&quot;AI Assistant&quot;},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;comfortable&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;compact&quot;,&quot;comfortable&quot;],&quot;section&quot;:&quot;Layout&quot;}}">
+class Component extends DCLogic {
+  state = {
+    role: null,
+    screen: 'login',
+    roomTab: 'a1',
+    reqFilter: 'all',
+    chatOpen: false,
+    chatInput: '',
+    chatMessages: [
+      { from: 'ai', text: 'สวัสดีค่ะ ดิฉันเป็นผู้ช่วย AI ของระบบบริหารที่พัก สสอ. สอบถามข้อมูลห้องพัก ห้องประชุม หรือให้ช่วยสรุปข้อมูลได้เลยค่ะ' }
+    ]
+  };
+
+  DEFAULT_SCREEN = { exec: 'exec-dashboard', caretaker: 'req-list', owner: 'owner-book', admin: 'ai-settings' };
+  ROLE_LABEL = { exec: 'ผู้บริหาร สสอ.', caretaker: 'ผู้ดูแลห้องพัก/ห้องประชุม', owner: 'เจ้าของโครงการ', admin: 'ผู้ดูแลระบบ' };
+  ROLE_INITIAL = { exec: 'บร', caretaker: 'ผด', owner: 'จค', admin: 'ผร' };
+  PAGE_TITLE = {
+    'exec-dashboard': 'ภาพรวมระบบ', 'req-list': 'คำขอจองห้องพักและห้องประชุม', 'room-status': 'สถานะห้องพัก',
+    'guest-assign': 'จัดผู้เข้าพักและเลขห้อง', 'checkin': 'Check-in / Check-out', 'owner-book': 'จองห้องพักและห้องประชุม',
+    'owner-status': 'สถานะการจอง', 'ai-settings': 'ตั้งค่าผู้ช่วย AI', 'users': 'ผู้ใช้งานระบบ'
+  };
+  NAV = {
+    exec: [{ key: 'exec-dashboard', label: 'ภาพรวมระบบ' }],
+    caretaker: [
+      { key: 'req-list', label: 'คำขอจองห้อง' },
+      { key: 'room-status', label: 'สถานะห้องพัก' },
+      { key: 'guest-assign', label: 'จัดผู้เข้าพัก' },
+      { key: 'checkin', label: 'Check-in / Check-out' }
+    ],
+    owner: [
+      { key: 'owner-book', label: 'จองห้องพัก/ประชุม' },
+      { key: 'owner-status', label: 'สถานะการจอง' }
+    ],
+    admin: [
+      { key: 'ai-settings', label: 'ตั้งค่าผู้ช่วย AI' },
+      { key: 'users', label: 'ผู้ใช้งานระบบ' }
+    ]
+  };
+
+  login(role) { this.setState({ role, screen: this.DEFAULT_SCREEN[role] }); }
+  go(screen) { this.setState({ screen }); }
+  logout() { this.setState({ role: null, screen: 'login' }); }
+  toggleChat() { this.setState(s => ({ chatOpen: !s.chatOpen })); }
+  setRoomTab(t) { this.setState({ roomTab: t }); }
+  setReqFilter(f) { this.setState({ reqFilter: f }); }
+  setChatInput = (e) => { this.setState({ chatInput: e.target.value }); };
+  increaseCost() { this.setState(s => ({ costPerAction: (s.costPerAction ?? this.props.costPerAction ?? 5) + 1 })); }
+  decreaseCost() { this.setState(s => ({ costPerAction: Math.max(1, (s.costPerAction ?? this.props.costPerAction ?? 5) - 1) })); }
+
+  sendChat() {
+    const text = (this.state.chatInput || '').trim();
+    if (!text) return;
+    const reply = 'รับทราบค่ะ นี่คือคำตอบตัวอย่างจากผู้ช่วย AI สำหรับ "' + text + '" (ระบบจำลองสำหรับต้นแบบ)';
+    this.setState(s => ({
+      chatMessages: [...s.chatMessages, { from: 'user', text }, { from: 'ai', text: reply }],
+      chatInput: ''
+    }));
+  }
+
+  renderVals() {
+    const s = this.state;
+    const costPerAction = s.costPerAction ?? this.props.costPerAction ?? 5;
+
+    const roleCards = [
+      { key: 'exec', initial: 'บร', title: 'ผู้บริหาร สสอ.', subtitle: 'ดูภาพรวมระบบและสถิติการใช้ห้อง', onClick: () => this.login('exec') },
+      { key: 'caretaker', initial: 'ผด', title: 'ผู้ดูแลห้องพัก/ห้องประชุม', subtitle: 'ตรวจสอบ อนุมัติ จัดห้อง และ Check-in/out', onClick: () => this.login('caretaker') },
+      { key: 'owner', initial: 'จค', title: 'เจ้าของโครงการ', subtitle: 'จองห้องพักและห้องประชุมสำหรับโครงการ', onClick: () => this.login('owner') },
+      { key: 'admin', initial: 'ผร', title: 'ผู้ดูแลระบบ', subtitle: 'ตั้งค่าผู้ช่วย AI และผู้ใช้งาน', onClick: () => this.login('admin') }
+    ];
+
+    const navItems = (this.NAV[s.role] || []).map(n => ({
+      key: n.key, label: n.label, onClick: () => this.go(n.key),
+      style: 'padding:10px 12px;border-radius:10px;font-size:13px;cursor:pointer;' +
+        (n.key === s.screen ? 'background:#7A1E2C;color:#fff;font-weight:500;' : 'color:#D9C9CB;')
+    }));
+
+    const density = this.props.density ?? 'comfortable';
+
+    const execKpis = [
+      { label: 'ห้องพักทั้งหมด', value: '120 ห้อง', delta: '3 อาคาร', deltaColor: '#8A8F98' },
+      { label: 'ห้องว่างวันนี้', value: '34 ห้อง', delta: '+6 จากเมื่อวาน', deltaColor: '#2F6B4F' },
+      { label: 'ผู้เข้าพักวันนี้', value: '86 คน', delta: '5 โครงการ', deltaColor: '#8A8F98' },
+      { label: 'ค่าใช้จ่าย AI เดือนนี้', value: '2,340 บ.', delta: '468 รายการ × ' + costPerAction + ' บ.', deltaColor: '#8A8F98' }
+    ];
+    const monthlyBars = [60, 75, 45, 90, 68, 82].map((h, i) => ({ h, label: ['เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.'][i] }));
+    const buildingOcc = [
+      { name: 'อาคาร 1', pct: 72, pctLabel: '72%' }, { name: 'อาคาร 2', pct: 88, pctLabel: '88%' }, { name: 'อาคาร 3', pct: 41, pctLabel: '41%' }
+    ];
+    const todayProjects = [
+      { name: 'อบรมหลักสูตรผู้บริหารสถานศึกษา รุ่น 12', building: 'อาคาร 2', guests: 24, status: 'เข้าพักแล้ว', tint: '#E4F0E9', color: '#2F6B4F' },
+      { name: 'ประชุมเชิงปฏิบัติการนิเทศการสอน', building: 'อาคาร 1', guests: 12, status: 'อนุมัติแล้ว', tint: '#F7ECD9', color: '#B8791E' },
+      { name: 'อบรมครูอาชีวศึกษามือใหม่ รุ่น 5', building: 'อาคาร 3', guests: 40, status: 'จองเบื้องต้น', tint: '#F0EAE6', color: '#8A8F98' },
+      { name: 'สัมมนาผู้อำนวยการวิทยาลัยเทคนิค', building: 'อาคาร 1', guests: 18, status: 'เข้าพักแล้ว', tint: '#E4F0E9', color: '#2F6B4F' },
+      { name: 'อบรมนักเรียนทุนพระราชทาน รุ่น 3', building: 'อาคาร 2', guests: 30, status: 'มีข้อขัดแย้ง', tint: '#F6E1E4', color: '#A32638' }
+    ];
+
+    const allRequests = [
+      { project: 'อบรมครูอาชีวศึกษามือใหม่ รุ่น 5', dates: '12–15 พ.ย. 2569', room: 'ห้องประชุมใหญ่ อาคาร 1', guests: 40, owner: 'วิทยาลัยเทคนิคสมุทรสาคร', status: 'จองเบื้องต้น', tint: '#F0EAE6', color: '#8A8F98', hasConflict: false, filter: 'pending' },
+      { project: 'อบรมนักเรียนทุนพระราชทาน รุ่น 3', dates: '8–11 ต.ค. 2569', room: 'อาคาร 2', guests: 30, owner: 'ศูนย์ทุนการศึกษา สอศ.', status: 'มีข้อขัดแย้ง', tint: '#F6E1E4', color: '#A32638', hasConflict: true, conflictWith: 'อบรมหลักสูตรผู้บริหารสถานศึกษา รุ่น 12', filter: 'conflict' },
+      { project: 'ประชุมเชิงปฏิบัติการนิเทศการสอน', dates: '2–3 ต.ค. 2569', room: 'ห้องประชุมเล็ก อาคาร 1', guests: 12, owner: 'กลุ่มนิเทศติดตาม', status: 'อนุมัติแล้ว', tint: '#E4F0E9', color: '#2F6B4F', hasConflict: false, filter: 'approved' },
+      { project: 'สัมมนาผู้อำนวยการวิทยาลัยเทคนิค', dates: '20–22 ต.ค. 2569', room: 'อาคาร 3', guests: 18, owner: 'สำนักอำนวยการ สอศ.', status: 'รอตรวจสอบ', tint: '#F7ECD9', color: '#B8791E', hasConflict: false, filter: 'pending' }
+    ];
+    const requests = allRequests.filter(r => s.reqFilter === 'all' || r.filter === s.reqFilter);
+    const reqFilters = [
+      { key: 'all', label: 'ทั้งหมด' }, { key: 'pending', label: 'รอตรวจสอบ' }, { key: 'approved', label: 'อนุมัติแล้ว' }, { key: 'conflict', label: 'มีข้อขัดแย้ง' }
+    ].map(f => ({ ...f, onClick: () => this.setReqFilter(f.key), style: 'font-size:12.5px;padding:7px 16px;border-radius:20px;cursor:pointer;' + (f.key === s.reqFilter ? 'background:#7A1E2C;color:#fff;' : 'background:#fff;border:1px solid #E6DED8;color:#5B5450;') }));
+
+    const buildingTabs = [{ key: 'a1', label: 'อาคาร 1' }, { key: 'a2', label: 'อาคาร 2' }, { key: 'a3', label: 'อาคาร 3' }]
+      .map(t => ({ ...t, onClick: () => this.setRoomTab(t.key), style: 'font-size:13px;padding:8px 18px;border-radius:8px;cursor:pointer;' + (t.key === s.roomTab ? 'background:#201316;color:#fff;' : 'background:#fff;border:1px solid #E6DED8;color:#5B5450;') }));
+    const statusLegend = [
+      { label: 'ว่าง', color: '#2F6B4F' }, { label: 'จองแล้ว', color: '#B8791E' }, { label: 'มีผู้พัก', color: '#7A1E2C' }, { label: 'ปิดซ่อม', color: '#8A8F98' }
+    ];
+    const STATUS_MAP = { free: { label: 'ว่าง', color: '#2F6B4F' }, booked: { label: 'จองแล้ว', color: '#B8791E' }, occupied: { label: 'มีผู้พัก', color: '#7A1E2C' }, closed: { label: 'ปิดซ่อม', color: '#8A8F98' } };
+    const roomPattern = ['occupied', 'occupied', 'free', 'booked', 'occupied', 'free', 'occupied', 'closed', 'free', 'occupied', 'booked', 'occupied', 'free', 'occupied', 'occupied', 'free', 'booked', 'occupied'];
+    const rooms = roomPattern.map((st, i) => {
+      const floor = Math.floor(i / 6) + 1;
+      const no = (s.roomTab === 'a1' ? '1' : s.roomTab === 'a2' ? '2' : '3') + floor + '0' + ((i % 6) + 1);
+      return { no, floor, beds: (i % 3) + 1, status: STATUS_MAP[st].label, color: STATUS_MAP[st].color };
+    });
+
+    const guests = [
+      { name: 'นายกิตติ วงศ์สุวรรณ', gender: 'ชาย', type: 'ผู้เข้าอบรม', roomRequested: '2201', roomAssigned: '2201', note: '-' },
+      { name: 'นางสาวปวีณา ศรีสุข', gender: 'หญิง', type: 'ผู้เข้าอบรม', roomRequested: '2210', roomAssigned: '2212', note: 'ย้ายห้อง: ห้องเดิมปิดซ่อม' },
+      { name: 'ผศ.ดร.สมชาย ประเสริฐ', gender: 'ชาย', type: 'วิทยากร', roomRequested: '2301', roomAssigned: '2301', note: 'พักเดี่ยว (มีเงื่อนไขค่าใช้จ่ายเพิ่ม)' },
+      { name: 'นางมาลี จันทร์เพ็ญ', gender: 'หญิง', type: 'กรรมการดำเนินโครงการ', roomRequested: '2215', roomAssigned: '2215', note: '-' },
+      { name: 'นายอนุชา ทองดี', gender: 'ชาย', type: 'ผู้เข้าอบรม', roomRequested: '2205', roomAssigned: '2205', note: '-' },
+      { name: 'นางสาวรัตนา บุญมี', gender: 'หญิง', type: 'ผู้เข้าอบรม', roomRequested: '2211', roomAssigned: '2211', note: 'ผู้สูงอายุ ขอห้องชั้นล่าง' }
+    ];
+
+    const checkinGuests = [
+      { name: 'นายกิตติ วงศ์สุวรรณ', room: '2201', keyStatus: 'รับกุญแจแล้ว', status: 'เข้าพักแล้ว', tint: '#E4F0E9', color: '#2F6B4F' },
+      { name: 'นางสาวปวีณา ศรีสุข', room: '2212', keyStatus: 'ยังไม่รับกุญแจ', status: 'รอ Check-in', tint: '#F7ECD9', color: '#B8791E' },
+      { name: 'ผศ.ดร.สมชาย ประเสริฐ', room: '2301', keyStatus: 'รับกุญแจแล้ว', status: 'เข้าพักแล้ว', tint: '#E4F0E9', color: '#2F6B4F' },
+      { name: 'นางมาลี จันทร์เพ็ญ', room: '2215', keyStatus: 'คืนกุญแจแล้ว', status: 'Check-out แล้ว', tint: '#F0EAE6', color: '#8A8F98' },
+      { name: 'นายอนุชา ทองดี', room: '2205', keyStatus: 'ยังไม่รับกุญแจ', status: 'รอ Check-in', tint: '#F7ECD9', color: '#B8791E' }
+    ];
+
+    const goOwnerStatus = () => this.go('owner-status');
+    const STEP_LABELS = ['จองเบื้องต้น', 'อนุมัติ', 'เข้าพัก', 'คืนห้อง'];
+    const currentStep = 1;
+    const stepperSteps = STEP_LABELS.map((label, i) => {
+      const done = i <= currentStep;
+      return {
+        n: i + 1, label,
+        bg: done ? '#7A1E2C' : '#F0EAE6', fg: done ? '#fff' : '#8A8F98',
+        textColor: done ? '#1F1B1A' : '#8A8F98',
+        hasLine: i < STEP_LABELS.length - 1, lineColor: i < currentStep ? '#7A1E2C' : '#E6DED8'
+      };
+    });
+
+    const apiConnections = [
+      { name: 'OpenRouter', keyMasked: 'sk-or-••••••••4f2a', status: 'เชื่อมต่อแล้ว', tint: '#E4F0E9', color: '#2F6B4F' },
+      { name: 'OpenAI API', keyMasked: 'ยังไม่ตั้งค่า', status: 'ยังไม่เชื่อมต่อ', tint: '#F0EAE6', color: '#8A8F98' },
+      { name: 'Local LM (หน่วยงานจัดหา)', keyMasked: 'http://10.0.4.2:8080', status: 'เชื่อมต่อแล้ว', tint: '#E4F0E9', color: '#2F6B4F' }
+    ];
+    const auditLog = [
+      { time: '21 ก.ย. 09:42', user: 'ผู้ดูแลห้องพัก - สมหญิง', action: 'สรุปห้องว่างอาคาร 2 ให้เจ้าของโครงการ', cost: costPerAction },
+      { time: '21 ก.ย. 08:15', user: 'เจ้าของโครงการ - วิทยาลัยเทคนิคสมุทรสาคร', action: 'ช่วยกรอกแบบขอใช้ห้องประชุม', cost: costPerAction },
+      { time: '20 ก.ย. 16:03', user: 'ผู้บริหาร สสอ.', action: 'สรุปสถิติการใช้ห้องพักประจำเดือน', cost: costPerAction },
+      { time: '20 ก.ย. 11:27', user: 'ผู้ดูแลห้องพัก - สมหญิง', action: 'ตรวจสอบข้อขัดแย้งการจองซ้อน', cost: costPerAction },
+      { time: '19 ก.ย. 14:50', user: 'เจ้าของโครงการ - ศูนย์ทุนการศึกษา', action: 'ถามเงื่อนไขพักเดี่ยว', cost: costPerAction }
+    ];
+    const users = [
+      { name: 'สมหญิง ดูแลดี', dept: 'กลุ่มอาคารและที่พัก', role: 'ผู้ดูแลห้องพัก', status: 'ใช้งานอยู่' },
+      { name: 'ประยุทธ ผู้บริหาร', dept: 'ผู้บริหาร สสอ.', role: 'ผู้บริหาร', status: 'ใช้งานอยู่' },
+      { name: 'วิทยาลัยเทคนิคสมุทรสาคร', dept: 'เจ้าของโครงการ', role: 'เจ้าของโครงการ', status: 'ใช้งานอยู่' },
+      { name: 'ศูนย์ทุนการศึกษา สอศ.', dept: 'เจ้าของโครงการ', role: 'เจ้าของโครงการ', status: 'ใช้งานอยู่' },
+      { name: 'ธีระ ผู้ดูแลระบบ', dept: 'กลุ่มเทคโนโลยีสารสนเทศ', role: 'ผู้ดูแลระบบ', status: 'ใช้งานอยู่' }
+    ];
+
+    const chatMessages = s.chatMessages.map(m => ({
+      text: m.text, align: m.from === 'user' ? 'flex-end' : 'flex-start',
+      bg: m.from === 'user' ? '#7A1E2C' : '#F7F3EE', color: m.from === 'user' ? '#fff' : '#1F1B1A'
+    }));
+
+    return {
+      showLogin: !s.role, showApp: !!s.role,
+      roleCards, roleLabel: this.ROLE_LABEL[s.role] || '', roleInitial: this.ROLE_INITIAL[s.role] || '',
+      navItems, pageTitle: this.PAGE_TITLE[s.screen] || '', logout: () => this.logout(),
+      costPerAction, increaseCost: () => this.increaseCost(), decreaseCost: () => this.decreaseCost(),
+      isExecDashboard: s.screen === 'exec-dashboard', execKpis, monthlyBars, buildingOcc, todayProjects,
+      isReqList: s.screen === 'req-list', reqFilters, requests,
+      isRoomStatus: s.screen === 'room-status', buildingTabs, statusLegend, rooms,
+      isGuestAssign: s.screen === 'guest-assign', guests,
+      isCheckin: s.screen === 'checkin', checkinGuests,
+      isOwnerBook: s.screen === 'owner-book', goOwnerStatus,
+      isOwnerStatus: s.screen === 'owner-status', stepperSteps,
+      isAiSettings: s.screen === 'ai-settings', apiConnections, auditLog,
+      isUsers: s.screen === 'users', users,
+      chatOpen: s.chatOpen, chatMessages, chatInput: s.chatInput,
+      toggleChat: () => this.toggleChat(), setChatInput: this.setChatInput, sendChat: () => this.sendChat()
+    };
+  }
+}
+
+</script>
+</body>
+</html>
