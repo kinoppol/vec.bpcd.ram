@@ -17,7 +17,7 @@ const AI_ACTIONS = [
     'update_rooms' => 'แก้ไขหลายห้อง',
     'delete_room' => 'ลบห้อง',
 ];
-const AI_READ_ACTIONS = ['search_rooms'];
+const AI_READ_ACTIONS = ['search_rooms', 'fill_form'];
 const AI_MAX_ACTIONS = 100;
 const AI_MAX_ROOMS_PER_ACTION = 200;
 
@@ -41,6 +41,7 @@ action ที่ใช้ได้:
 - update_building: code, และ name/floors ที่ต้องการแก้
 - delete_building: code
 - add_room: building_code, room_no, floor, beds, type (lodging=ห้องพัก | meeting=ห้องประชุม)
+  ห้องประชุมต่างจากห้องพัก: room_no ใช้เป็นชื่อห้องได้ (เช่น "ราชพฤกษ์ 1"), beds = จำนวนที่นั่ง (ไม่ระบุก็ได้ ระบบใช้ 30), ไม่มีห้องย่อย ห้ามถามเลขห้อง/จำนวนเตียง ถ้ามีชื่อห้องและชั้นแล้วให้สร้างได้ทันที (ใช้ add_room ทีละห้อง หรือ add_rooms พร้อม type meeting)
 - update_room: building_code, room_no, และที่ต้องการแก้ ได้แก่ new_room_no, floor, beds, type, status (available|reserved|occupied|cleaning|maintenance|unavailable) และ reason (สาเหตุ) ; unavailable = ห้องไม่ว่างเพราะถูกใช้ในภารกิจอื่น ต้องมี reason เสมอ
 - delete_room: building_code, room_no
 - update_rooms (แก้หลายห้องพร้อมกัน เช่น เปลี่ยนสถานะทั้งชั้น): building_code, และ floor หรือ room_nos (ต้องระบุอย่างน้อยหนึ่งอย่าง) พร้อม status และ/หรือ type ที่ต้องการเปลี่ยน (status=unavailable ต้องมี reason) — ใช้คำสั่งนี้แทนการเขียน update_room ซ้ำหลายบรรทัด
@@ -148,6 +149,10 @@ function ai_quick_room_answer(PDO $db, string $q): ?string
     if (!preg_match('/ว่าง|สถานะ|ใช้ได้|พร้อม|เต็ม|ไหม|หรือไม่|หรือเปล่า|เป็นอย่างไร|อะไร/u', $q)) {
         return null;
     }
+    // คำถามที่อิงวันที่ (เช่น "วันที่ 25 กันยายน 2569 ห้องประชุม ... ว่างไหม") ต้องให้โมเดลตอบ — ห้ามเอาปีไปตีเป็นเลขห้อง
+    if (preg_match('/วันที่|วัน|เดือน|มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม|ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.|พ\.ศ\.|ค\.ศ\.|ปี\s*\d|\d{1,2}\/\d{1,2}\/\d{2,4}|\d{4}-\d{2}-\d{2}/u', $q)) {
+        return null;
+    }
     // เลขห้อง = ตัวเลขอย่างน้อย 3 หลัก (อาจมีตัวอักษรต่อท้าย เช่น 101A) — ไม่ใช้เลขชั้น/จำนวนสั้น ๆ
     if (!preg_match_all('/(?<![0-9A-Za-z])(\d{3,5}[A-Za-z]?)(?![0-9A-Za-z])/u', $q, $m)) {
         return null;
@@ -173,6 +178,35 @@ function ai_quick_room_answer(PDO $db, string $q): ?string
         }
     }
     return implode("\n", $out);
+}
+
+/** แยกข้อมูลสำหรับกรอกฟอร์มโครงการจากบล็อก fill_form ที่ AI ส่งมา @return ?array null = ไม่พบ/ข้อมูลว่าง */
+function ai_extract_fill_form(array $reads): ?array
+{
+    foreach ($reads as $r) {
+        if (($r['action'] ?? '') !== 'fill_form') {
+            continue;
+        }
+        $f = [];
+        if (!empty($r['name']) && is_string($r['name'])) {
+            $f['name'] = mb_substr(trim($r['name']), 0, 255);
+        }
+        foreach (['start_date', 'end_date'] as $k) {
+            if (!empty($r[$k]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$r[$k])) {
+                $f[$k] = $r[$k];
+            }
+        }
+        foreach (['male', 'female', 'rooms_trainee', 'rooms_speaker', 'rooms_committee'] as $k) {
+            if (isset($r[$k]) && ($v = filter_var($r[$k], FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => 9999]])) !== false) {
+                $f[$k] = $v;
+            }
+        }
+        if (!empty($r['note']) && is_string($r['note'])) {
+            $f['note'] = mb_substr(trim($r['note']), 0, 500);
+        }
+        return $f ?: null;
+    }
+    return null;
 }
 
 /** ค้นหาห้อง (อ่านอย่างเดียว) ตัวกรองทุกค่าผ่านการตรวจสอบและ bind parameter @return string ผลลัพธ์เป็นข้อความ */
@@ -372,8 +406,9 @@ function ai_validate_action(PDO $db, array $a): array
         case 'add_room':
             $b = ai_find_building($db, $s('building_code'));
             $type = $s('type') === 'meeting' ? 'meeting' : 'lodging';
-            if ($s('room_no') === '' || mb_strlen($s('room_no')) > 30 || ($fl = $n('floor', 1, 100)) === false || ($bd = $n('beds', 1, 500)) === false) {
-                throw new RuntimeException('ข้อมูลห้องไม่ครบ (room_no, floor, beds)');
+            $bd = isset($a['beds']) ? $n('beds', 1, 500) : ($type === 'meeting' ? 30 : false);
+            if ($s('room_no') === '' || mb_strlen($s('room_no')) > 30 || ($fl = $n('floor', 1, 100)) === false || $bd === false) {
+                throw new RuntimeException('ข้อมูลห้องไม่ครบ (room_no, floor' . ($type === 'meeting' ? '' : ', beds') . ')');
             }
             [$ul, $ub] = ai_units_param($a);
             $out += ['building_code' => $b['code'], 'room_no' => $s('room_no'), 'floor' => $fl, 'beds' => $ul ? count($ul) * $ub : $bd, 'type' => $type, 'units' => $ul, 'unit_beds' => $ub];
@@ -381,7 +416,7 @@ function ai_validate_action(PDO $db, array $a): array
         case 'add_rooms':
             $b = ai_find_building($db, $s('building_code'));
             $type = $s('type') === 'meeting' ? 'meeting' : 'lodging';
-            $bd = isset($a['beds']) ? $n('beds', 1, 500) : 2;
+            $bd = isset($a['beds']) ? $n('beds', 1, 500) : ($type === 'meeting' ? 30 : 2);
             if (($fl = $n('floor', 1, 100)) === false || $bd === false || !is_array($a['room_nos'] ?? null)) {
                 throw new RuntimeException('add_rooms ต้องมี building_code, floor, room_nos (รายการ)');
             }

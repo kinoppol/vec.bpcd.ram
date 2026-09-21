@@ -226,18 +226,22 @@ function ai_widget(): void
   var mic=$('aimic'),hint=$('aihint'),HINT=hint.textContent,rec=null,listening=false,hintTm=null;
   function getSR(){return window.SpeechRecognition||window.webkitSpeechRecognition}
   function say(t,ms){clearTimeout(hintTm);hint.textContent=t;if(ms)hintTm=setTimeout(function(){hint.textContent=HINT},ms)}
-  function stopMic(){if(rec){try{rec.stop()}catch(e){}}}
-  function startMic(){
-    var SR=getSR();rec=new SR();rec.lang='th-TH';rec.interimResults=true;rec.continuous=false;rec.maxAlternatives=1;
+  var want=false,silTm=null,gotText=false;
+  function armSil(){clearTimeout(silTm);silTm=setTimeout(function(){want=false;stopMic()},5000)} // เงียบเกิน 5 วินาที → หยุดเอง
+  function stopMic(){want=false;clearTimeout(silTm);if(rec){try{rec.stop()}catch(e){}}}
+  function startMic(first){
+    var SR=getSR();rec=new SR();rec.lang='th-TH';rec.interimResults=true;rec.continuous=true;rec.maxAlternatives=1;
     var base=inp.value?inp.value.replace(/\s+$/,'')+' ':'',finalText='',failed=false;
-    rec.onstart=function(){listening=true;mic.classList.add('listening');mic.title='กำลังฟัง — คลิกเพื่อหยุด';say('🎤 กำลังฟัง... พูดได้เลย (คลิกไมค์เพื่อหยุด)')};
+    if(first){want=true;gotText=false}
+    rec.onstart=function(){listening=true;mic.classList.add('listening');mic.title='กำลังฟัง — คลิกเพื่อหยุด';say('🎤 กำลังฟัง... พูดต่อเนื่องได้เลย (คลิกไมค์เพื่อหยุด หรือเงียบ 5 วินาทีจะหยุดเอง)');if(first)armSil()};
     rec.onresult=function(e){
-      var interim='';
+      var interim='';armSil();
       for(var i=e.resultIndex;i<e.results.length;i++){var t=e.results[i][0].transcript;if(e.results[i].isFinal)finalText+=t;else interim+=t}
+      if(finalText||interim)gotText=true;
       inp.value=base+finalText+interim;grow();st.draft=inp.value;save();
     };
     rec.onerror=function(e){
-      failed=true;var er=e.error;
+      failed=true;var er=e.error;if(er==='no-speech'&&want){failed=false;return}
       if(er==='not-allowed'||er==='service-not-allowed')uiAlert('ไม่ได้รับอนุญาตให้ใช้ไมโครโฟน — คลิกไอคอนกุญแจข้างที่อยู่เว็บ แล้วเลือกอนุญาตไมโครโฟนสำหรับเว็บนี้',{title:'ใช้ไมโครโฟนไม่ได้'});
       else if(er==='no-speech')say('ไม่ได้ยินเสียง ลองกดไมค์แล้วพูดใหม่',4000);
       else if(er==='audio-capture')say('ไม่พบไมโครโฟนในเครื่องนี้',5000);
@@ -245,8 +249,10 @@ function ai_widget(): void
       else if(er!=='aborted')say('แปลงเสียงไม่สำเร็จ ('+er+')',5000);
     };
     rec.onend=function(){
-      listening=false;mic.classList.remove('listening');mic.title='พูดเป็นคำสั่งเสียง (แปลงเป็นข้อความโดยเบราว์เซอร์)';rec=null;
-      if(!failed)say(finalText?'ตรวจข้อความก่อน แล้วกด Enter เพื่อส่ง':HINT,finalText?6000:0);
+      rec=null;
+      if(want&&!failed){startMic(false);return} // เบราว์เซอร์ตัดการฟังเอง แต่ยังไม่ครบ 5 วินาทีเงียบ → เริ่มฟังต่อ
+      want=false;clearTimeout(silTm);listening=false;mic.classList.remove('listening');mic.title='พูดเป็นคำสั่งเสียง (แปลงเป็นข้อความโดยเบราว์เซอร์)';
+      if(!failed)say(gotText?'ตรวจข้อความก่อน แล้วกด Enter เพื่อส่ง':HINT,gotText?6000:0);
       inp.focus();inp.setSelectionRange(inp.value.length,inp.value.length);
     };
     try{rec.start()}catch(e){rec=null;say('เริ่มฟังไม่สำเร็จ ลองอีกครั้ง',3000)}
@@ -256,9 +262,9 @@ function ai_widget(): void
     if(listening){stopMic();return}
     if(!window.isSecureContext){uiAlert('คำสั่งเสียงใช้ได้เฉพาะเมื่อเปิดเว็บผ่าน HTTPS หรือ localhost เท่านั้น',{title:'ใช้คำสั่งเสียงไม่ได้'});return}
     var ok=false;try{ok=localStorage.getItem('aiMicOk')==='1'}catch(e){}
-    if(ok){startMic();return}
+    if(ok){startMic(true);return}
     uiConfirm('เบราว์เซอร์จะส่งเสียงของคุณไปแปลงเป็นข้อความที่ผู้ให้บริการของเบราว์เซอร์ (เช่น Google สำหรับ Chrome) ระบบนี้ไม่บันทึกเสียง — ใช้เฉพาะข้อความที่แปลงได้ ต้องการใช้ต่อหรือไม่?',{title:'ใช้ไมโครโฟน',danger:false,ok:'ใช้งาน'})
-      .then(function(y){if(y){try{localStorage.setItem('aiMicOk','1')}catch(e){}startMic()}});
+      .then(function(y){if(y){try{localStorage.setItem('aiMicOk','1')}catch(e){}startMic(true)}});
   };
 
   // ประวัติที่ส่งให้โมเดล: 6 ข้อความล่าสุดก่อนคำถามนี้ (ตัดคำทักทาย ข้อความรอ และข้อความแสดงข้อผิดพลาดออก)
