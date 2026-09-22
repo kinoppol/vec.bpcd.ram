@@ -29,7 +29,7 @@ app_start('ภาพรวมระบบ', $user, 'home');
   <div class="card kpi"><small>ผู้เข้าพักขณะนี้</small><div><?= $inHouse ?></div></div>
   <div class="card kpi"><small>คำขอรอตรวจสอบ</small><div><?= $pending ?></div></div>
 </div>
-<?php building_map($db, in_array($user['role'], ['admin', 'caretaker'], true)); ?>
+<?php building_map($db, in_array($user['role'], ['admin', 'caretaker'], true), $_GET['bdate'] ?? null); ?>
 <div class="row" style="margin-bottom:16px">
   <div class="card"><b>จำนวนผู้เข้าพักรายเดือน</b>
     <div style="display:flex;align-items:flex-end;gap:10px;height:150px;margin-top:16px">

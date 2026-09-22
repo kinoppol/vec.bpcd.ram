@@ -92,23 +92,33 @@ $ctx = 'วันนี้ ' . date('Y-m-d') . ' | ห้องพักทั�
     . ' | ผู้เข้าพักขณะนี้ ' . $c("SELECT COUNT(*) FROM guests WHERE status='checked_in'")
     . ' | คำขอรอตรวจสอบ ' . $c("SELECT COUNT(*) FROM projects WHERE status IN ('pending','checking')");
 if ($me['role'] === 'owner') {
-    $st = $db->prepare('SELECT name,start_date,end_date,status FROM projects WHERE owner_id=? ORDER BY id DESC LIMIT 10');
+    $st = $db->prepare('SELECT id,name,start_date,end_date,status FROM projects WHERE owner_id=? ORDER BY id DESC LIMIT 10');
     $st->execute([$me['id']]);
     $ctx .= "\nโครงการของผู้ใช้: " . json_encode($st->fetchAll(), JSON_UNESCAPED_UNICODE);
 } else {
-    $ctx .= "\nโครงการล่าสุด: " . json_encode($db->query('SELECT name,start_date,end_date,status FROM projects ORDER BY id DESC LIMIT 10')->fetchAll(), JSON_UNESCAPED_UNICODE);
+    $ctx .= "\nโครงการล่าสุด (id ใช้อ้างอิงตอนสั่ง assign_lodging): " . json_encode($db->query('SELECT id,name,start_date,end_date,status FROM projects ORDER BY id DESC LIMIT 10')->fetchAll(), JSON_UNESCAPED_UNICODE);
+    if ($isAdmin) {
+        $ctx .= "\nจำนวนผู้เข้าพักที่ยังไม่ได้จัดห้อง แยกตามโครงการและประเภท (project_id,type,n): " . json_encode($db->query("SELECT g.project_id,g.type,COUNT(*) n FROM guests g JOIN projects p ON p.id=g.project_id WHERE g.room_id IS NULL AND g.status IN ('expected','checked_in') AND p.status IN ('pending','checking','approved') GROUP BY g.project_id,g.type")->fetchAll(), JSON_UNESCAPED_UNICODE);
+    }
 }
+// การจองห้องประชุมที่ยังมีผลอยู่ (รออนุมัติ/กำลังตรวจสอบ/อนุมัติแล้ว) — สถานะห้องเฉย ๆ ไม่บอกว่าห้องถูกจองช่วงวันไหน ต้องส่งรายการนี้เสมอเพื่อให้ตอบคำถาม "ห้องประชุม...วันที่...ว่างไหม" ได้ถูกต้อง
+$ctx .= "\nการจองห้องประชุมที่มีผล (b=อาคาร,n=เลขห้อง,ชื่อโครงการ,start_date,end_date): " . json_encode($db->query("SELECT b.name b,r.room_no n,p.name,p.start_date,p.end_date FROM projects p JOIN rooms r ON r.id=p.meeting_room_id JOIN buildings b ON b.id=r.building_id WHERE p.meeting_room_id IS NOT NULL AND p.status IN ('pending','checking','approved') ORDER BY p.start_date")->fetchAll(), JSON_UNESCAPED_UNICODE);
 $sys = 'คุณคือผู้ช่วยของระบบบริหารที่พัก สสอ. ตอบเป็นภาษาไทยสั้น กระชับ ใช้เฉพาะข้อมูลด้านล่าง หากไม่มีข้อมูลให้บอกตามตรง'
-    . ' นิยามสถานะห้อง: available=ว่าง, reserved=จองแล้ว, occupied=มีผู้พัก, cleaning=ทำความสะอาด, maintenance=ปิดซ่อม, unavailable=ไม่ว่าง(ใช้ภารกิจอื่น) — ห้อง "ว่าง" ได้เฉพาะสถานะ available เท่านั้น สถานะอื่นทั้งหมดถือว่าไม่ว่าง ตอบสถานะเป็นภาษาไทย ห้ามยกชื่อสถานะภาษาอังกฤษให้ผู้ใช้';
+    . ' นิยามสถานะห้อง: available=ว่าง, reserved=จองแล้ว, occupied=มีผู้พัก, cleaning=ทำความสะอาด, maintenance=ปิดซ่อม, unavailable=ไม่ว่าง(ใช้ภารกิจอื่น) — ห้อง "ว่าง" ได้เฉพาะสถานะ available เท่านั้น สถานะอื่นทั้งหมดถือว่าไม่ว่าง ตอบสถานะเป็นภาษาไทย ห้ามยกชื่อสถานะภาษาอังกฤษให้ผู้ใช้'
+    . ' หากผู้ใช้ถามว่าห้องประชุมห้องใดว่างหรือไม่ในวันที่ที่ระบุ ให้ตรวจสอบกับ "การจองห้องประชุมที่มีผล" เสมอ — ถ้าช่วงวันที่ถามทับซ้อนกับรายการจองใดของห้องเดียวกัน (start_date<=วันที่สิ้นสุดที่ถาม และ end_date>=วันที่เริ่มที่ถาม) ให้ตอบว่าห้องนั้นไม่ว่างในช่วงวันดังกล่าวเพราะมีโครงการอื่นจองไว้แล้ว (ระบุชื่อโครงการที่จอง) ห้ามตอบว่าไม่มีข้อมูลการจองรายห้อง เพราะข้อมูลนี้มีให้แล้ว';
 if ($isDraftProject) {
     $mrooms = $db->query("SELECT r.id,b.name bn,r.room_no FROM rooms r JOIN buildings b ON b.id=r.building_id WHERE r.type='meeting' AND r.status<>'maintenance' ORDER BY b.code,r.room_no")->fetchAll();
+    // การจองห้องประชุมที่ยังมีผลอยู่ (รออนุมัติ/กำลังตรวจสอบ/อนุมัติแล้ว) — ต้องส่งให้โมเดลด้วย ไม่เช่นนั้นจะไม่รู้ว่าห้องถูกจองในช่วงวันที่นั้นแล้ว (สถานะห้องเฉย ๆ ไม่บอกวันจอง)
+    $mbookings = $db->query("SELECT meeting_room_id,name,start_date,end_date FROM projects WHERE meeting_room_id IS NOT NULL AND status IN ('pending','checking','approved') ORDER BY start_date")->fetchAll();
     $sys = 'คุณคือผู้ช่วยร่างโครงการของระบบบริหารที่พัก สสอ. หน้าที่ของคุณคือช่วยเจ้าของโครงการกรอกแบบฟอร์มขอจองห้องพัก ตอบเป็นภาษาไทย กระชับ เป็นมิตร'
         . "\nทันทีที่ผู้ใช้ให้ข้อมูลโครงการ (แม้ยังไม่ครบ) ให้ร่างค่าที่เหมาะสมเองโดยประมาณจากข้อมูลที่มี (เช่น แบ่งจำนวนห้องผู้เข้าอบรม/วิทยากร/กรรมการตามสมควร) ไม่ต้องถามกลับถ้าพอร่างได้ ตอบข้อความสรุปสั้น ๆ แล้วต่อท้ายด้วยบล็อกคำสั่งในรูปแบบนี้เพื่อกรอกฟอร์มให้อัตโนมัติ:"
         . "\n```action\n{\"action\":\"fill_form\",\"name\":\"ชื่อโครงการ\",\"start_date\":\"YYYY-MM-DD\",\"end_date\":\"YYYY-MM-DD\",\"male\":0,\"female\":0,\"rooms_trainee\":0,\"rooms_speaker\":0,\"rooms_committee\":0,\"meeting_room_id\":0,\"note\":\"\"}\n```"
         . "\nฟิลด์ที่ไม่ทราบให้ใส่ค่าว่างหรือ 0 ตาม type meeting_room_id คือ id ของห้องประชุมจากรายการห้องประชุมด้านล่าง (ใส่เมื่อผู้ใช้ระบุห้องประชุม เลือกให้ตรงชื่อที่สุด ถ้าไม่ใช้/ไม่พบให้ใส่ 0) ห้ามคิด id เอง ห้ามคิด action อื่น ไม่ต้องเขียนชื่อห้องประชุมซ้ำในหมายเหตุ"
+        . "\nก่อนตอบว่าห้องประชุมใดว่างหรือไม่ว่างในช่วงวันที่ที่ผู้ใช้ระบุ ต้องตรวจสอบกับ \"รายการจองห้องประชุมที่มีอยู่แล้ว\" ด้านล่างเสมอ — ถ้าช่วงวันที่ทับซ้อนกับรายการจองใด (start_date<=วันที่สิ้นสุดที่ถาม และ end_date>=วันที่เริ่มที่ถาม) ของห้องเดียวกัน ให้ตอบว่าห้องนั้น \"ไม่ว่าง\" ในช่วงวันดังกล่าว (มีผู้จองไว้แล้ว) และห้ามใส่ meeting_room_id ของห้องนั้นให้ ต้องแจ้งผู้ใช้และให้เลือกห้องอื่นหรือวันอื่น"
         . "\nถ้าผู้ใช้ให้ข้อมูลไม่ครบ ให้ถามต่อเพื่อให้ได้ข้อมูลที่จำเป็น ข้อมูลวันที่ต้องเป็นรูปแบบ YYYY-MM-DD เสมอ และเป็นปี ค.ศ. (ถ้าผู้ใช้พูดปี พ.ศ. เช่น 2569 ให้ลบ 543 = 2026) ต้องตอบบล็อก action ทุกครั้งที่มีข้อมูลโครงการ ห้ามตอบเป็นข้อความอย่างเดียว"
         . "\nวันนี้: " . date('Y-m-d') . ' | ข้อมูลระบบ: ' . $ctx
-        . "\nรายการห้องประชุม (id, อาคาร, ห้อง): " . json_encode($mrooms, JSON_UNESCAPED_UNICODE);
+        . "\nรายการห้องประชุม (id, อาคาร, ห้อง): " . json_encode($mrooms, JSON_UNESCAPED_UNICODE)
+        . "\nรายการจองห้องประชุมที่มีอยู่แล้ว (meeting_room_id ต้องตรงกับ id ในรายการห้องประชุมด้านบน, start_date/end_date คือช่วงที่ถูกจอง): " . json_encode($mbookings, JSON_UNESCAPED_UNICODE);
 } elseif ($isAdmin) {
     $ctx .= "\nอาคาร: " . json_encode($db->query('SELECT code,name,floors FROM buildings ORDER BY code')->fetchAll(), JSON_UNESCAPED_UNICODE);
     $ctx .= "\nห้อง (b=อาคาร,n=เลขห้อง,f=ชั้น,e=เตียง,t=ประเภท,s=สถานะ,u=ห้องย่อย,w=สาเหตุที่ไม่ว่าง/ปิดซ่อม): " . json_encode($db->query("SELECT b.code b,r.room_no n,r.floor f,r.beds e,r.type t,r.status s,(SELECT GROUP_CONCAT(u.label) FROM room_units u WHERE u.room_id=r.id) u,r.status_note w FROM rooms r JOIN buildings b ON b.id=r.building_id ORDER BY b.code,r.floor,r.room_no LIMIT 400")->fetchAll(), JSON_UNESCAPED_UNICODE);
@@ -144,7 +154,15 @@ if ($fillData !== null) {
         if (($r['action'] ?? '') === 'fill_form') {
             $mid = (int)($r['meeting_room_id'] ?? 0);
             if ($mid && in_array($mid, array_map('intval', array_column($mrooms, 'id')), true)) {
-                $fillData['meeting_room_id'] = $mid;
+                // ตรวจสอบซ้ำฝั่งเซิร์ฟเวอร์เสมอ (ห้ามพึ่งโมเดลอย่างเดียว) — ถ้าช่วงวันที่ทับซ้อนกับโครงการอื่นที่จองห้องนี้ไว้แล้ว ห้ามกรอกห้องนี้ให้
+                $conf = !empty($fillData['start_date']) && !empty($fillData['end_date'])
+                    ? project_conflicts(['meeting_room_id' => $mid, 'start_date' => $fillData['start_date'], 'end_date' => $fillData['end_date']])
+                    : [];
+                if ($conf) {
+                    $text .= ($text !== '' ? "\n\n" : '') . '⚠ ห้องที่เลือกมีผู้จองไว้แล้วในช่วงวันที่ดังกล่าว (' . implode(', ', array_column($conf, 'name')) . ') กรุณาเลือกห้องอื่นหรือวันอื่น';
+                } else {
+                    $fillData['meeting_room_id'] = $mid;
+                }
             }
             break;
         }

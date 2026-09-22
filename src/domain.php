@@ -47,6 +47,52 @@ function thai_date(?string $d): string
     return date('j', $t) . ' ' . $m[(int)date('n', $t)] . ' ' . ((int)date('Y', $t) + 543);
 }
 
+/**
+ * ช่วงวันเข้าพักเริ่มต้นของผู้เข้าพัก คำนวณจากวันโครงการ: เข้าพักล่วงหน้า 1 คืนก่อนวันแรก
+ * และไม่จัดคืนของวันสุดท้าย (ผู้เกี่ยวข้องมักเดินทางกลับวันสุดท้ายไม่ค้างคืน)
+ * @return array{0:string,1:string} [stay_start, stay_end] (stay_end = วันออก ไม่รวมคืนนั้น)
+ */
+function guest_default_stay(array $project): array
+{
+    $start = (new DateTimeImmutable($project['start_date']))->modify('-1 day')->format('Y-m-d');
+    $end = $project['end_date'];
+    return [$start, $end];
+}
+
+/**
+ * สถานะห้องทุกห้อง ณ วันที่กำหนด (สำหรับดูย้อนหลัง/ล่วงหน้า): วันนี้ใช้สถานะจริงปัจจุบันตรง ๆ
+ * วันอื่นคำนวณจากการจอง (ผู้เข้าพักคลุมวันนั้น = ห้องพักไม่ว่าง, โครงการจองคลุมวันนั้น = ห้องประชุมไม่ว่าง)
+ * สถานะปิดใช้งานเชิงบริหาร (maintenance/unavailable) คงไว้ทุกวันที่ เพราะไม่มีข้อมูลกำหนดวันสิ้นสุด
+ * @return array<int,string> [room_id => status]
+ */
+function room_statuses_on_date(PDO $db, string $date): array
+{
+    $statuses = $types = [];
+    foreach ($db->query('SELECT id,status,type FROM rooms')->fetchAll() as $r) {
+        $statuses[(int)$r['id']] = $r['status'];
+        $types[(int)$r['id']] = $r['type'];
+    }
+    if ($date === date('Y-m-d')) {
+        return $statuses;
+    }
+    $st = $db->prepare("SELECT room_id FROM guests WHERE room_id IS NOT NULL AND status IN ('expected','checked_in')
+        AND (stay_start IS NULL OR stay_start<=?) AND (stay_end IS NULL OR stay_end>?) GROUP BY room_id");
+    $st->execute([$date, $date]);
+    $occRooms = array_flip(array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN)));
+    $mt = $db->prepare("SELECT meeting_room_id FROM projects WHERE meeting_room_id IS NOT NULL AND status IN ('pending','checking','approved') AND start_date<=? AND end_date>=?");
+    $mt->execute([$date, $date]);
+    $bookedMeeting = array_flip(array_map('intval', $mt->fetchAll(PDO::FETCH_COLUMN)));
+    foreach ($statuses as $rid => $s) {
+        if (in_array($s, ['maintenance', 'unavailable'], true)) {
+            continue;
+        }
+        $statuses[$rid] = $types[$rid] === 'meeting'
+            ? (isset($bookedMeeting[$rid]) ? 'reserved' : 'available')
+            : (isset($occRooms[$rid]) ? 'reserved' : 'available');
+    }
+    return $statuses;
+}
+
 /** โครงการอื่นที่ใช้ห้องประชุมเดียวกันและวันชนกัน */
 function project_conflicts(array $p): array
 {
@@ -303,19 +349,41 @@ function room_label(?string $bcode, ?string $roomNo, ?string $unit = null): stri
 
 /**
  * ที่พักที่จัดคนได้ ("slot"): ห้องที่ไม่มีห้องย่อย = 1 slot, ห้องที่มีห้องย่อย = 1 slot ต่อห้องย่อย
+ * ถ้าระบุ $stayStart/$stayEnd จะนับเฉพาะผู้เข้าพักที่ช่วงวันที่เข้า-ออกทับซ้อนกับช่วงที่ขอ (ห้องจึงว่างคืนที่ไม่ชนกันได้แม้มีคนพักช่วงอื่น)
+ * ผู้เข้าพักที่ไม่มีวันที่ระบุ (ข้อมูลเก่า) ถือว่าจองทับทุกช่วง (ปลอดภัยไว้ก่อน)
  * @return list<array{key:string,label:string,room_id:int,unit_id:?int,cap:int,used:int}>
  */
-function slot_list(PDO $db, ?int $excludeGuest = null): array
+function slot_list(PDO $db, ?int $excludeGuest = null, ?string $stayStart = null, ?string $stayEnd = null, ?string $buildingCode = null, ?int $floor = null): array
 {
     $ex = $excludeGuest ? ' AND g.id<>' . (int)$excludeGuest : '';
-    $act = "g.status IN ('expected','checked_in')$ex";
+    $args = [];
+    $dateCond = '';
+    if ($stayStart !== null && $stayEnd !== null) {
+        $dateCond = ' AND (g.stay_start IS NULL OR g.stay_start<?) AND (g.stay_end IS NULL OR g.stay_end>?)';
+        $args = [$stayEnd, $stayStart];
+    }
+    $act = "g.status IN ('expected','checked_in')$ex$dateCond";
+    $bCond = '';
+    $bArgs = [];
+    if ($buildingCode !== null) {
+        $bCond .= ' AND b.code=?';
+        $bArgs[] = $buildingCode;
+    }
+    if ($floor !== null) {
+        $bCond .= ' AND r.floor=?';
+        $bArgs[] = $floor;
+    }
     $slots = [];
-    $rooms = $db->query("SELECT r.id,r.room_no,r.beds,b.code bcode,
+    $st = $db->prepare("SELECT r.id,r.room_no,r.beds,b.code bcode,
         (SELECT COUNT(*) FROM guests g WHERE g.room_id=r.id AND g.unit_id IS NULL AND $act) used,
         (SELECT COUNT(*) FROM room_units u WHERE u.room_id=r.id) nunits
-        FROM rooms r JOIN buildings b ON b.id=r.building_id WHERE r.type='lodging' AND r.status NOT IN ('maintenance','unavailable') ORDER BY b.code,r.room_no")->fetchAll();
+        FROM rooms r JOIN buildings b ON b.id=r.building_id WHERE r.type='lodging' AND r.status NOT IN ('maintenance','unavailable')$bCond ORDER BY b.code,r.room_no");
+    $st->execute([...$args, ...$bArgs]);
+    $rooms = $st->fetchAll();
     $units = [];
-    foreach ($db->query("SELECT u.*,(SELECT COUNT(*) FROM guests g WHERE g.unit_id=u.id AND $act) used FROM room_units u ORDER BY u.label")->fetchAll() as $u) {
+    $st = $db->prepare("SELECT u.*,(SELECT COUNT(*) FROM guests g WHERE g.unit_id=u.id AND $act) used FROM room_units u ORDER BY u.label");
+    $st->execute($args);
+    foreach ($st->fetchAll() as $u) {
         $units[$u['room_id']][] = $u;
     }
     foreach ($rooms as $r) {
@@ -330,9 +398,37 @@ function slot_list(PDO $db, ?int $excludeGuest = null): array
     return $slots;
 }
 
-function slot_lookup(PDO $db, string $key, int $excludeGuest): ?array
+/**
+ * ลำดับผู้เข้าพักคนนี้ในห้อง/ห้องย่อยที่จัดอยู่ (เช่น "1/2","2/2") เรียงตาม id เพื่อให้เห็นชัดว่าใครเป็นคนที่เท่าไรของห้องเดียวกัน
+ * @return ?string null = ยังไม่ได้จัดห้อง
+ */
+function room_occupant_rank(PDO $db, array $g): ?string
 {
-    foreach (slot_list($db, $excludeGuest) as $s) {
+    if (!$g['room_id']) {
+        return null;
+    }
+    if ($g['unit_id']) {
+        $capSt = $db->prepare('SELECT beds FROM room_units WHERE id=?');
+        $capSt->execute([$g['unit_id']]);
+        $w = 'unit_id=?';
+        $args = [$g['room_id'], $g['unit_id']];
+    } else {
+        $capSt = $db->prepare('SELECT beds FROM rooms WHERE id=?');
+        $capSt->execute([$g['room_id']]);
+        $w = 'unit_id IS NULL';
+        $args = [$g['room_id']];
+    }
+    $cap = (int)$capSt->fetchColumn();
+    $st = $db->prepare("SELECT id FROM guests WHERE room_id=? AND $w AND status IN ('expected','checked_in') ORDER BY id");
+    $st->execute($args);
+    $occ = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+    $pos = array_search((int)$g['id'], $occ, true);
+    return $pos === false ? null : ($pos + 1) . '/' . max($cap, count($occ));
+}
+
+function slot_lookup(PDO $db, string $key, int $excludeGuest, ?string $stayStart = null, ?string $stayEnd = null): ?array
+{
+    foreach (slot_list($db, $excludeGuest, $stayStart, $stayEnd) as $s) {
         if ($s['key'] === $key) {
             return $s;
         }

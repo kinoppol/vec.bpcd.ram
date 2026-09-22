@@ -4,15 +4,19 @@ declare(strict_types=1);
 /**
  * ภาพจำลองอาคาร: แต่ละอาคารเป็นภาพตัดขวาง เรียงชั้นจากบนลงล่าง ห้องแต่ละห้องเป็นช่องสีตามสถานะ
  * จำนวนชั้นมาจากข้อมูลห้องจริง (ชั้นสูงสุดที่มีห้อง) — ชั้นที่ยังไม่มีห้องแสดงเป็นแถวว่าง
+ * $date: วันที่ต้องการดูสถานะ (ค่าเริ่มต้น = วันนี้) — วันอื่นคำนวณสถานะจากการจองจริง ไม่ใช่สถานะปัจจุบันตรง ๆ
  */
-function building_map(PDO $db, bool $linkRooms): void
+function building_map(PDO $db, bool $linkRooms, ?string $date = null): void
 {
     $buildings = $db->query('SELECT * FROM buildings ORDER BY code')->fetchAll();
     if (!$buildings) {
         return;
     }
+    $date = $date && preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) ? $date : date('Y-m-d');
+    $eff = room_statuses_on_date($db, $date);
     $rooms = [];
     foreach ($db->query('SELECT id,building_id,room_no,floor,beds,type,status,status_note FROM rooms ORDER BY floor,room_no')->fetchAll() as $r) {
+        $r['status'] = $eff[(int)$r['id']] ?? $r['status'];
         $rooms[$r['building_id']][(int)$r['floor']][] = $r;
     }
     $hues = [350, 205, 150, 32, 270, 175, 15, 230]; // โทนสีอาคารเดียวกับหน้าสถานะห้องพัก
@@ -24,10 +28,17 @@ function building_map(PDO $db, bool $linkRooms): void
             }
         }
     }
+    $isToday = $date === date('Y-m-d');
     ?>
 <div class="card bmap">
   <div class="bmap-head">
-    <div><b>ภาพจำลองอาคารและสถานะห้องพัก</b><div class="bmap-sub">ชี้ที่ห้องเพื่อดูรายละเอียด · คลิกสถานะด้านขวาเพื่อไฮไลต์เฉพาะสถานะนั้น</div></div>
+    <div><b>ภาพจำลองอาคารและสถานะห้องพัก</b><div class="bmap-sub">ชี้ที่ห้องเพื่อดูรายละเอียด · คลิกสถานะด้านขวาเพื่อไฮไลต์เฉพาะสถานะนั้น<?= $isToday ? '' : ' · สถานะคำนวณจากการจอง ณ วันที่เลือก' ?></div></div>
+    <form method="get" style="display:flex;align-items:center;gap:8px">
+      <?php foreach ($_GET as $k => $v): if ($k !== 'bdate' && is_scalar($v)): ?><input type="hidden" name="<?= e($k) ?>" value="<?= e((string)$v) ?>"><?php endif; endforeach; ?>
+      <label style="margin:0;font-size:12.5px;color:#8A8F98">ดูสถานะ ณ วันที่</label>
+      <input type="date" name="bdate" value="<?= e($date) ?>" onchange="this.form.submit()">
+      <?php if (!$isToday): ?><a class="btn ghost" href="<?= e(url(basename($_SERVER['PHP_SELF']))) ?>">วันนี้</a><?php endif; ?>
+    </form>
     <div class="bmap-legend" id="bmapLegend">
       <?php foreach (ROOM_STATUS as $k => [$label, $color]): ?>
         <button type="button" class="lg" data-st="<?= e($k) ?>" title="ไฮไลต์: <?= e($label) ?>"><i class="sw st-<?= e($k) ?>" style="background:<?= e($color) ?>"></i><?= e($label) ?> <b><?= (int)$total[$k] ?></b></button>
@@ -64,7 +75,7 @@ function building_map(PDO $db, bool $linkRooms): void
                 <?php if (!$list): ?><span class="none">ไม่มีห้องพักที่ลงทะเบียน</span><?php endif; ?>
                 <?php foreach ($list as $r):
                     $tip = "{$b['code']}-{$r['room_no']} · " . ROOM_STATUS[$r['status']][0] . ' · ' . $r['beds'] . ($r['type'] === 'meeting' ? ' ที่นั่ง (ห้องประชุม)' : ' เตียง')
-                        . (!empty($r['status_note']) ? ' · สาเหตุ: ' . $r['status_note'] : '');
+                        . (!empty($r['status_note']) ? ' · สาเหตุ: ' . $r['status_note'] : '') . ($isToday ? '' : ' · ณ ' . $date);
                     $tag = $linkRooms ? 'a' : 'span';
                     $href = $linkRooms ? ' href="' . e(url('rooms.php?b=' . $b['id'])) . '"' : '';
                     ?>
