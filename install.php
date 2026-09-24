@@ -54,9 +54,21 @@ function write_config(array $db): void
 }
 
 // ---------- ควบคุมการเข้าถึง (กรณีติดตั้งซ้ำ) ----------
+/** ตรวจว่าล็อกอินด้วยบัญชี admin เดิมได้จริงหรือไม่ (DB ต่อได้ + มีผู้ใช้ role admin อย่างน้อย 1 คน) */
+function admin_login_possible(array $existing): bool
+{
+    try {
+        $pdo = Db::connect($existing['db']);
+        $n = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role='admin'")->fetchColumn();
+        return $n > 0;
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 $existing = app_config();
 $reinstall = $existing !== null;
-if ($reinstall) {
+if ($reinstall && admin_login_possible($existing)) {
     $u = Auth::user();
     if (!$u || $u['role'] !== 'admin') {
         page_head('ติดตั้งระบบ');
@@ -66,6 +78,8 @@ if ($reinstall) {
         page_foot();
         exit;
     }
+} elseif ($reinstall) {
+    flash('info', 'ตรวจพบว่าเข้าสู่ระบบด้วยบัญชีผู้ดูแลเดิมไม่ได้ (ฐานข้อมูลเชื่อมต่อไม่ได้ หรือไม่มีบัญชีผู้ดูแลระบบ) จึงอนุญาตให้ติดตั้งซ้ำได้โดยไม่ต้องเข้าสู่ระบบ');
 }
 
 $checks = system_checks();
