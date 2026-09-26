@@ -449,3 +449,192 @@ function pending_migrations(): int
     }
     return $n;
 }
+
+// ---------- ประเภทห้อง / รูปห้องตัวอย่าง ----------
+const ROOM_IMAGE_TYPES = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp', 'gif' => 'image/gif'];
+const ROOM_IMAGE_MAX = 5 * 1024 * 1024;
+
+function room_type_image_dir(): string
+{
+    $d = APP_ROOT . '/storage/room_types';
+    if (!is_dir($d)) {
+        mkdir($d, 0775, true);
+    }
+    return $d;
+}
+
+/** path ของไฟล์รูป (ตรวจชื่อไฟล์กันการอ้างอิงนอกโฟลเดอร์) หรือ null ถ้าไม่มี */
+function room_type_image_path(?string $file): ?string
+{
+    if (!$file || !preg_match('/^[A-Za-z0-9_]+\.(jpe?g|png|webp|gif)$/', $file)) {
+        return null;
+    }
+    $p = room_type_image_dir() . '/' . $file;
+    return is_file($p) ? $p : null;
+}
+
+/** ตรวจว่าเป็นรูปจริง แล้วบันทึกเป็นรูปของประเภทห้อง (แทนรูปเดิม) — คืนชื่อไฟล์ใหม่ */
+function room_type_save_image(PDO $db, int $typeId, string $bytes): string
+{
+    if (strlen($bytes) > ROOM_IMAGE_MAX) {
+        throw new RuntimeException('ไฟล์รูปใหญ่เกิน 5 MB');
+    }
+    $info = @getimagesizefromstring($bytes);
+    $ext = $info ? array_search($info['mime'], ROOM_IMAGE_TYPES, true) : false;
+    if ($ext === false) {
+        throw new RuntimeException('รองรับเฉพาะไฟล์รูป JPG, PNG, WEBP หรือ GIF');
+    }
+    $name = 'rt' . $typeId . '_' . bin2hex(random_bytes(6)) . '.' . $ext;
+    if (file_put_contents(room_type_image_dir() . '/' . $name, $bytes) === false) {
+        throw new RuntimeException('บันทึกไฟล์รูปไม่สำเร็จ');
+    }
+    $old = $db->prepare('SELECT image FROM room_types WHERE id=?');
+    $old->execute([$typeId]);
+    if ($p = room_type_image_path((string)$old->fetchColumn())) {
+        @unlink($p);
+    }
+    $db->prepare('UPDATE room_types SET image=? WHERE id=?')->execute([$name, $typeId]);
+    return $name;
+}
+
+// ---------- ส่งออก/นำเข้าข้อมูลอาคาร ห้องพัก ห้องประชุม (ZIP: data.json + images/) ----------
+function facilities_export_zip(PDO $db): string
+{
+    if (!class_exists('ZipArchive')) {
+        throw new RuntimeException('เซิร์ฟเวอร์ไม่ได้เปิดใช้ PHP extension zip');
+    }
+    $types = [];
+    $zipImgs = [];
+    foreach ($db->query('SELECT * FROM room_types ORDER BY name')->fetchAll() as $t) {
+        $img = null;
+        if ($p = room_type_image_path($t['image'])) {
+            $img = 'images/' . $t['image'];
+            $zipImgs[$img] = $p;
+        }
+        $types[] = ['name' => $t['name'], 'note' => $t['note'], 'image' => $img];
+    }
+    $units = [];
+    foreach ($db->query('SELECT room_id,label,beds FROM room_units ORDER BY label')->fetchAll() as $u) {
+        $units[$u['room_id']][] = ['label' => $u['label'], 'beds' => (int)$u['beds']];
+    }
+    $rooms = [];
+    foreach ($db->query('SELECT r.*, t.name type_name FROM rooms r LEFT JOIN room_types t ON t.id=r.room_type_id ORDER BY r.floor,r.room_no')->fetchAll() as $r) {
+        $rooms[$r['building_id']][] = ['room_no' => $r['room_no'], 'floor' => (int)$r['floor'], 'beds' => (int)$r['beds'], 'type' => $r['type'],
+            'room_type' => $r['type_name'], 'status' => $r['status'], 'status_note' => $r['status_note'], 'units' => $units[$r['id']] ?? []];
+    }
+    $buildings = [];
+    foreach ($db->query('SELECT * FROM buildings ORDER BY code')->fetchAll() as $b) {
+        $buildings[] = ['code' => $b['code'], 'name' => $b['name'], 'floors' => (int)$b['floors'], 'note' => $b['note'], 'rooms' => $rooms[$b['id']] ?? []];
+    }
+    $data = ['format' => 'vec-facilities', 'version' => 1, 'exported_at' => date('c'), 'room_types' => $types, 'buildings' => $buildings];
+
+    $file = tempnam(sys_get_temp_dir(), 'fac');
+    $zip = new ZipArchive();
+    if ($zip->open($file, ZipArchive::OVERWRITE) !== true) {
+        throw new RuntimeException('สร้างไฟล์ ZIP ไม่สำเร็จ');
+    }
+    $zip->addFromString('data.json', json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    foreach ($zipImgs as $name => $p) {
+        $zip->addFile($p, $name);
+    }
+    $zip->close();
+    return $file;
+}
+
+/**
+ * นำเข้าแบบรวมข้อมูล (merge): จับคู่ประเภทห้องด้วยชื่อ อาคารด้วยรหัส ห้องด้วย (อาคาร, เลขห้อง) ห้องย่อยด้วยชื่อ
+ * — ที่มีอยู่แล้วจะถูกอัปเดต ที่ยังไม่มีจะถูกเพิ่ม ไม่ลบข้อมูลเดิม และคงสถานะห้องเดิมไว้ (สถานะจากไฟล์ใช้กับห้องใหม่เท่านั้น)
+ * @return array{types:int,buildings:int,rooms:int,units:int,images:int}
+ */
+function facilities_import_zip(PDO $db, string $zipPath): array
+{
+    if (!class_exists('ZipArchive')) {
+        throw new RuntimeException('เซิร์ฟเวอร์ไม่ได้เปิดใช้ PHP extension zip');
+    }
+    $zip = new ZipArchive();
+    if ($zip->open($zipPath) !== true) {
+        throw new RuntimeException('ไฟล์ไม่ใช่ ZIP ที่ถูกต้อง');
+    }
+    try {
+        $data = json_decode((string)$zip->getFromName('data.json'), true);
+        if (!is_array($data) || ($data['format'] ?? '') !== 'vec-facilities') {
+            throw new RuntimeException('ไม่พบ data.json ของระบบในไฟล์ ZIP (ต้องเป็นไฟล์ที่ส่งออกจากระบบนี้)');
+        }
+        $str = fn($v, int $max) => mb_substr(trim((string)$v), 0, $max);
+        $opt = fn($v, int $max) => ($s = mb_substr(trim((string)$v), 0, $max)) !== '' ? $s : null;
+        $n = ['types' => 0, 'buildings' => 0, 'rooms' => 0, 'units' => 0, 'images' => 0];
+        $images = [];
+        $typeId = [];
+        $db->beginTransaction();
+        try {
+            $upType = $db->prepare('INSERT INTO room_types (name,note) VALUES (?,?) ON DUPLICATE KEY UPDATE note=VALUES(note), id=LAST_INSERT_ID(id)');
+            foreach ((array)($data['room_types'] ?? []) as $t) {
+                $name = $str($t['name'] ?? '', 100);
+                if ($name === '') {
+                    continue;
+                }
+                $upType->execute([$name, $opt($t['note'] ?? '', 255)]);
+                $typeId[$name] = (int)$db->lastInsertId();
+                $n['types']++;
+                $img = (string)($t['image'] ?? '');
+                if (str_starts_with($img, 'images/') && ($bytes = $zip->getFromName($img)) !== false) {
+                    $images[$typeId[$name]] = $bytes;
+                }
+            }
+            $findType = $db->prepare('SELECT id FROM room_types WHERE name=?');
+            $upB = $db->prepare('INSERT INTO buildings (code,name,floors,note) VALUES (?,?,?,?)
+                ON DUPLICATE KEY UPDATE name=VALUES(name), floors=VALUES(floors), note=VALUES(note), id=LAST_INSERT_ID(id)');
+            $upR = $db->prepare('INSERT INTO rooms (building_id,room_no,floor,beds,type,room_type_id,status,status_note) VALUES (?,?,?,?,?,?,?,?)
+                ON DUPLICATE KEY UPDATE floor=VALUES(floor), beds=VALUES(beds), type=VALUES(type), room_type_id=VALUES(room_type_id), id=LAST_INSERT_ID(id)');
+            $upU = $db->prepare('INSERT INTO room_units (room_id,label,beds) VALUES (?,?,?) ON DUPLICATE KEY UPDATE beds=VALUES(beds)');
+            foreach ((array)($data['buildings'] ?? []) as $b) {
+                $code = $str($b['code'] ?? '', 20);
+                if ($code === '') {
+                    continue;
+                }
+                $upB->execute([$code, $str($b['name'] ?? '', 120) ?: $code, max(1, (int)($b['floors'] ?? 1)), $opt($b['note'] ?? '', 255)]);
+                $bid = (int)$db->lastInsertId();
+                $n['buildings']++;
+                foreach ((array)($b['rooms'] ?? []) as $r) {
+                    $no = $str($r['room_no'] ?? '', 30);
+                    if ($no === '') {
+                        continue;
+                    }
+                    $tid = null;
+                    if (($tn = $str($r['room_type'] ?? '', 100)) !== '') {
+                        if (!array_key_exists($tn, $typeId)) {
+                            $findType->execute([$tn]);
+                            $typeId[$tn] = ((int)$findType->fetchColumn()) ?: null;
+                        }
+                        $tid = $typeId[$tn];
+                    }
+                    $status = isset(ROOM_STATUS[$r['status'] ?? '']) ? $r['status'] : 'available';
+                    $upR->execute([$bid, $no, max(1, (int)($r['floor'] ?? 1)), max(1, (int)($r['beds'] ?? 1)), ($r['type'] ?? '') === 'meeting' ? 'meeting' : 'lodging',
+                        $tid, $status, $opt($r['status_note'] ?? '', 255)]);
+                    $rid = (int)$db->lastInsertId();
+                    $n['rooms']++;
+                    foreach ((array)($r['units'] ?? []) as $u) {
+                        if (($label = $str($u['label'] ?? '', 20)) !== '') {
+                            $upU->execute([$rid, $label, max(1, (int)($u['beds'] ?? 1))]);
+                            $n['units']++;
+                        }
+                    }
+                    if (!empty($r['units'])) {
+                        room_sync_beds($db, $rid);
+                    }
+                }
+            }
+            foreach ($images as $tid => $bytes) {
+                room_type_save_image($db, $tid, $bytes);
+                $n['images']++;
+            }
+            $db->commit();
+        } catch (Throwable $ex) {
+            $db->rollBack();
+            throw $ex;
+        }
+    } finally {
+        $zip->close();
+    }
+    return $n;
+}

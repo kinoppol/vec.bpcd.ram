@@ -6,17 +6,87 @@ require __DIR__ . '/views/layout.php';
 $me = Auth::require('caretaker');
 $db = Db::pdo();
 
+// ส่งออกอาคาร/ห้องพัก/ห้องประชุม/ประเภทห้อง (พร้อมรูป) เป็นไฟล์ ZIP
+if (isset($_GET['export'])) {
+    try {
+        $file = facilities_export_zip($db);
+        audit('ส่งออกข้อมูลอาคารและห้อง (ZIP)');
+        header('Content-Type: application/zip');
+        header('Content-Disposition: attachment; filename="facilities_' . date('Ymd_His') . '.zip"');
+        header('Content-Length: ' . filesize($file));
+        readfile($file);
+        @unlink($file);
+        exit;
+    } catch (Throwable $ex) {
+        flash('error', $ex->getMessage());
+        redirect('rooms.php');
+    }
+}
+
+/** อ่านไฟล์ที่อัปโหลด คืนค่า path ชั่วคราว หรือ null ถ้าไม่ได้เลือกไฟล์ */
+function uploaded(string $field): ?string
+{
+    $f = $_FILES[$field] ?? null;
+    if (!$f || $f['error'] === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+    if ($f['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($f['tmp_name'])) {
+        throw new RuntimeException('อัปโหลดไฟล์ไม่สำเร็จ (ไฟล์อาจใหญ่เกินที่เซิร์ฟเวอร์กำหนด)');
+    }
+    return $f['tmp_name'];
+}
+
 try {
     switch (post_action()) {
+        case 'import':
+            if (!$tmp = uploaded('zip')) {
+                throw new RuntimeException('กรุณาเลือกไฟล์ ZIP');
+            }
+            $n = facilities_import_zip($db, $tmp);
+            audit("นำเข้าข้อมูลอาคารและห้อง (ZIP): อาคาร {$n['buildings']} ห้อง {$n['rooms']} ประเภทห้อง {$n['types']}");
+            flash('success', "นำเข้าสำเร็จ: อาคาร {$n['buildings']} · ห้อง {$n['rooms']} · ห้องย่อย {$n['units']} · ประเภทห้อง {$n['types']} · รูป {$n['images']}");
+            break;
+        case 'rtype_save':
+            $name = mb_substr(trim((string)($_POST['name'] ?? '')), 0, 100);
+            if ($name === '') {
+                throw new RuntimeException('กรุณาระบุชื่อประเภทห้อง');
+            }
+            $note = mb_substr(trim((string)($_POST['note'] ?? '')), 0, 255) ?: null;
+            if ($tid = (int)($_POST['id'] ?? 0)) {
+                $db->prepare('UPDATE room_types SET name=?, note=? WHERE id=?')->execute([$name, $note, $tid]);
+            } else {
+                $db->prepare('INSERT INTO room_types (name,note) VALUES (?,?)')->execute([$name, $note]);
+                $tid = (int)$db->lastInsertId();
+            }
+            if ($tmp = uploaded('image')) {
+                room_type_save_image($db, $tid, (string)file_get_contents($tmp));
+            }
+            audit('บันทึกประเภทห้อง ' . $name);
+            break;
+        case 'rtype_del':
+            $st = $db->prepare('SELECT image FROM room_types WHERE id=?');
+            $st->execute([(int)$_POST['id']]);
+            $img = room_type_image_path((string)$st->fetchColumn());
+            $db->prepare('DELETE FROM room_types WHERE id=?')->execute([(int)$_POST['id']]);
+            if ($img) {
+                @unlink($img);
+            }
+            audit('ลบประเภทห้อง #' . (int)$_POST['id']);
+            break;
+        case 'room_rtype':
+            $tid = (int)($_POST['room_type_id'] ?? 0);
+            $db->prepare('UPDATE rooms SET room_type_id=? WHERE id=?')->execute([$tid ?: null, (int)$_POST['id']]);
+            audit('กำหนดประเภทห้อง #' . (int)$_POST['id']);
+            break;
         case 'building':
             $db->prepare('INSERT INTO buildings (code,name,floors) VALUES (?,?,?)')
                 ->execute([trim($_POST['code']), trim($_POST['name']), max(1, (int)$_POST['floors'])]);
             audit('เพิ่มอาคาร ' . trim($_POST['name']));
             break;
         case 'room':
-            $db->prepare('INSERT INTO rooms (building_id,room_no,floor,beds,type) VALUES (?,?,?,?,?)')
+            $db->prepare('INSERT INTO rooms (building_id,room_no,floor,beds,type,room_type_id) VALUES (?,?,?,?,?,?)')
                 ->execute([(int)$_POST['building_id'], trim($_POST['room_no']), max(1, (int)$_POST['floor']), max(1, (int)$_POST['beds']),
-                    $_POST['type'] === 'meeting' ? 'meeting' : 'lodging']);
+                    $_POST['type'] === 'meeting' ? 'meeting' : 'lodging', (int)($_POST['room_type_id'] ?? 0) ?: null]);
             audit('เพิ่มห้อง ' . trim($_POST['room_no']));
             break;
         case 'unit_add':
@@ -82,6 +152,12 @@ foreach ($db->query('SELECT * FROM room_units ORDER BY label')->fetchAll() as $u
     $units[$u['room_id']][] = $u;
 }
 
+$rtypes = [];
+foreach ($db->query('SELECT t.*, (SELECT COUNT(*) FROM rooms r WHERE r.room_type_id=t.id) used FROM room_types t ORDER BY t.name')->fetchAll() as $t) {
+    $t['src'] = room_type_image_path($t['image']) ? url('room_image.php?t=' . $t['id'] . '&v=' . rawurlencode((string)$t['image'])) : null;
+    $rtypes[$t['id']] = $t;
+}
+
 $hues = [350, 205, 150, 32, 270, 175, 15, 230]; // โทนสีตามลำดับอาคาร (วนซ้ำเมื่อมีมากกว่า 8)
 $hueOf = [];
 foreach ($buildings as $i => $b) {
@@ -92,6 +168,11 @@ app_start('สถานะห้องพัก', $me, 'rooms');
 <div class="actions" style="margin-bottom:16px">
   <button type="button" class="btn" data-open="dlgBuilding">+ เพิ่มอาคาร</button>
   <button type="button" class="btn" data-open="dlgRoom" <?= $buildings ? '' : 'disabled title="เพิ่มอาคารก่อน"' ?>>+ เพิ่มห้อง</button>
+  <button type="button" class="btn ghost" data-open="dlgTypes">ประเภทห้อง / รูปห้อง (<?= count($rtypes) ?>)</button>
+  <span style="margin-left:auto;display:flex;gap:8px">
+    <a class="btn ghost" href="<?= e(url('rooms.php?export=1')) ?>" title="อาคาร ห้องพัก ห้องประชุม ห้องย่อย ประเภทห้องและรูป">⬇ ส่งออก ZIP</a>
+    <button type="button" class="btn ghost" data-open="dlgImport">⬆ นำเข้า ZIP</button>
+  </span>
 </div>
 
 <?php if (!$buildings): ?>
@@ -120,8 +201,16 @@ app_start('สถานะห้องพัก', $me, 'rooms');
       <div class="rgrid">
       <?php foreach ($rooms as $r): [$l, $c] = ROOM_STATUS[$r['status']]; ?>
         <div class="card room" style="border-left-color:<?= $c ?>">
+          <?php $rt = $rtypes[$r['room_type_id']] ?? null; if ($rt && $rt['src']): ?>
+            <button type="button" class="rthumb" data-img="<?= e($rt['src']) ?>" data-cap="<?= e($rt['name'] . ' — ห้อง ' . $r['room_no'] . ($rt['note'] ? ' · ' . $rt['note'] : '')) ?>" title="ดูรูปห้องตัวอย่าง (<?= e($rt['name']) ?>)"><img src="<?= e($rt['src']) ?>" alt="<?= e($rt['name']) ?>" loading="lazy"></button>
+          <?php endif; ?>
           <b><?= e($r['room_no']) ?></b><?= $r['type'] === 'meeting' ? ' <span class="mt">ห้องประชุม</span>' : '' ?>
           <div class="sub"><?= $r['beds'] ?> <?= $r['type'] === 'meeting' ? 'ที่นั่ง' : 'เตียง' ?></div>
+          <?php if ($rtypes): ?>
+          <form method="post" style="margin-bottom:4px"><?= csrf_field() ?><input type="hidden" name="action" value="room_rtype"><input type="hidden" name="id" value="<?= $r['id'] ?>"><input type="hidden" name="b" value="<?= $b['id'] ?>">
+            <select name="room_type_id" onchange="this.form.submit()" title="ประเภทห้อง" style="padding:4px 8px;font-size:11.5px"><option value="">— ประเภทห้อง —</option>
+              <?php foreach ($rtypes as $t): ?><option value="<?= $t['id'] ?>" <?= $t['id'] == $r['room_type_id'] ? 'selected' : '' ?>><?= e($t['name']) ?></option><?php endforeach; ?></select></form>
+          <?php endif; ?>
           <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="status"><input type="hidden" name="id" value="<?= $r['id'] ?>"><input type="hidden" name="b" value="<?= $b['id'] ?>">
             <select name="status" class="stsel" data-room="<?= e($r['room_no']) ?>" data-id="<?= $r['id'] ?>" data-b="<?= $b['id'] ?>" data-cur="<?= e($r['status']) ?>" data-note="<?= e((string)$r['status_note']) ?>" onchange="statusChange(this)" style="padding:5px 8px;font-size:12px;color:<?= $c ?>">
               <?php foreach (ROOM_STATUS as $k => [$lb]): ?><option value="<?= $k ?>" <?= $k === $r['status'] ? 'selected' : '' ?>><?= e($lb) ?></option><?php endforeach; ?></select></form>
@@ -170,12 +259,59 @@ app_start('สถานะห้องพัก', $me, 'rooms');
     <div><label>เลขห้อง/ชื่อห้อง</label><input type="text" name="room_no" required maxlength="30"></div>
     <div><label>ชั้น</label><input type="number" name="floor" value="1" min="1"></div>
     <div><label>จำนวนเตียง/ที่นั่ง</label><input type="number" name="beds" value="2" min="1"></div>
-    <div><label>ประเภท</label><select name="type"><option value="lodging">ห้องพัก</option><option value="meeting">ห้องประชุม</option></select></div></div>
+    <div><label>ประเภท</label><select name="type"><option value="lodging">ห้องพัก</option><option value="meeting">ห้องประชุม</option></select></div>
+    <div><label>ประเภทห้อง (รูปตัวอย่าง)</label><select name="room_type_id"><option value="">— ไม่ระบุ —</option><?php foreach ($rtypes as $t): ?><option value="<?= $t['id'] ?>"><?= e($t['name']) ?></option><?php endforeach; ?></select></div></div>
     <p style="font-size:12px;color:#8A8F98">ต้องการแยกห้องนอนภายในห้อง (เช่น A, B) ให้เพิ่มห้องก่อน แล้วกด "+ ห้องย่อย" ที่การ์ดห้อง</p>
     <div class="modal-f"><button type="button" class="btn ghost" data-close>ยกเลิก</button><button class="btn" <?= $buildings ? '' : 'disabled' ?>>เพิ่มห้อง</button></div>
   </form>
 </dialog>
+<dialog id="dlgTypes" class="modal modal-lg">
+  <div class="modal-h"><b>ประเภทห้อง / รูปห้องตัวอย่าง</b><button type="button" class="modal-x" data-close aria-label="ปิด">✕</button></div>
+  <p style="font-size:12.5px;color:#8A8F98;margin-top:0">อัปโหลดรูปห้องตัวอย่าง 1 รูปต่อประเภท แล้วเลือกประเภทที่การ์ดห้อง — ทุกห้องประเภทเดียวกันจะแสดงรูปนี้</p>
+  <?php foreach ($rtypes as $t): ?>
+    <div class="rtype">
+      <?php if ($t['src']): ?><button type="button" class="rthumb" data-img="<?= e($t['src']) ?>" data-cap="<?= e($t['name']) ?>"><img src="<?= e($t['src']) ?>" alt=""></button><?php else: ?><div class="rthumb none">ไม่มีรูป</div><?php endif; ?>
+      <form method="post" enctype="multipart/form-data" class="rtype-f"><?= csrf_field() ?><input type="hidden" name="action" value="rtype_save"><input type="hidden" name="id" value="<?= $t['id'] ?>"><input type="hidden" name="b" value="<?= $bid ?>">
+        <input type="text" name="name" value="<?= e($t['name']) ?>" required maxlength="100" title="ชื่อประเภท">
+        <input type="text" name="note" value="<?= e((string)$t['note']) ?>" maxlength="255" placeholder="รายละเอียด (ไม่บังคับ)">
+        <input type="file" name="image" accept="image/jpeg,image/png,image/webp,image/gif" title="<?= $t['src'] ? 'เปลี่ยนรูป' : 'เพิ่มรูป' ?>">
+        <span style="font-size:11.5px;color:#8A8F98">ใช้กับ <?= (int)$t['used'] ?> ห้อง</span>
+        <button class="btn" style="padding:5px 12px">บันทึก</button></form>
+      <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="rtype_del"><input type="hidden" name="id" value="<?= $t['id'] ?>"><input type="hidden" name="b" value="<?= $bid ?>">
+        <button class="btn ghost" style="padding:5px 10px;color:#A32638" data-confirm="ลบประเภทห้อง &quot;<?= e($t['name']) ?>&quot;? (ห้องที่ใช้ประเภทนี้จะไม่มีประเภท)">ลบ</button></form>
+    </div>
+  <?php endforeach; ?>
+  <form method="post" enctype="multipart/form-data" class="rtype rtype-new"><?= csrf_field() ?><input type="hidden" name="action" value="rtype_save"><input type="hidden" name="b" value="<?= $bid ?>">
+    <div class="rtype-f">
+      <input type="text" name="name" required maxlength="100" placeholder="ชื่อประเภทใหม่ เช่น ห้องเดี่ยว, ห้องคู่ VIP">
+      <input type="text" name="note" maxlength="255" placeholder="รายละเอียด (ไม่บังคับ)">
+      <input type="file" name="image" accept="image/jpeg,image/png,image/webp,image/gif">
+      <button class="btn" style="padding:5px 12px">+ เพิ่มประเภท</button>
+    </div>
+  </form>
+  <p style="font-size:11.5px;color:#8A8F98">รองรับ JPG, PNG, WEBP, GIF ขนาดไม่เกิน 5 MB</p>
+</dialog>
+<dialog id="dlgImport" class="modal">
+  <form method="post" enctype="multipart/form-data"><?= csrf_field() ?><input type="hidden" name="action" value="import"><input type="hidden" name="b" value="<?= $bid ?>">
+    <div class="modal-h"><b>นำเข้าข้อมูลอาคารและห้อง (ZIP)</b><button type="button" class="modal-x" data-close aria-label="ปิด">✕</button></div>
+    <label>ไฟล์ ZIP ที่ส่งออกจากระบบ</label><input type="file" name="zip" accept=".zip,application/zip" required>
+    <ul style="font-size:12.5px;color:#5B5450;padding-left:18px">
+      <li>อาคารจับคู่ด้วย<b>รหัสอาคาร</b> ห้องจับคู่ด้วย<b>อาคาร + เลขห้อง</b> ประเภทห้องจับคู่ด้วย<b>ชื่อ</b></li>
+      <li>ข้อมูลที่มีอยู่แล้วจะถูกอัปเดต ที่ยังไม่มีจะถูกเพิ่ม — ไม่ลบข้อมูลเดิม</li>
+      <li>สถานะห้องที่มีอยู่แล้วคงเดิม (ใช้สถานะจากไฟล์กับห้องใหม่เท่านั้น)</li>
+    </ul>
+    <div class="modal-f"><button type="button" class="btn ghost" data-close>ยกเลิก</button><button class="btn">นำเข้า</button></div>
+  </form>
+</dialog>
+<dialog id="dlgImg" class="modal modal-lg">
+  <div class="modal-h"><b id="imgCap"></b><button type="button" class="modal-x" data-close aria-label="ปิด">✕</button></div>
+  <img id="imgBig" alt="" style="width:100%;max-height:70vh;object-fit:contain;border-radius:10px;background:#F7F3EE">
+</dialog>
 <script>
+// รูปห้องตัวอย่าง: คลิกรูปย่อเพื่อดูภาพใหญ่
+document.querySelectorAll('[data-img]').forEach(function(b){b.onclick=function(){
+  document.getElementById('imgBig').src=b.dataset.img;document.getElementById('imgCap').textContent=b.dataset.cap;
+  document.getElementById('dlgImg').showModal()}});
 // แท็บอาคาร: สลับโดยไม่โหลดหน้าใหม่ จำแท็บล่าสุดไว้ และอัปเดต URL (?b=) ให้แชร์/รีเฟรชแล้วอยู่แท็บเดิม
 var activeB=<?= (int)$bid ?>;
 function showTab(id){
