@@ -6,46 +6,8 @@ require __DIR__ . '/views/layout.php';
 $me = Auth::require('caretaker');
 $db = Db::pdo();
 
-// ส่งออกอาคาร/ห้องพัก/ห้องประชุม/ประเภทห้อง (พร้อมรูป) เป็นไฟล์ ZIP
-if (isset($_GET['export'])) {
-    try {
-        $file = facilities_export_zip($db);
-        audit('ส่งออกข้อมูลอาคารและห้อง (ZIP)');
-        header('Content-Type: application/zip');
-        header('Content-Disposition: attachment; filename="facilities_' . date('Ymd_His') . '.zip"');
-        header('Content-Length: ' . filesize($file));
-        readfile($file);
-        @unlink($file);
-        exit;
-    } catch (Throwable $ex) {
-        flash('error', $ex->getMessage());
-        redirect('rooms.php');
-    }
-}
-
-/** อ่านไฟล์ที่อัปโหลด คืนค่า path ชั่วคราว หรือ null ถ้าไม่ได้เลือกไฟล์ */
-function uploaded(string $field): ?string
-{
-    $f = $_FILES[$field] ?? null;
-    if (!$f || $f['error'] === UPLOAD_ERR_NO_FILE) {
-        return null;
-    }
-    if ($f['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($f['tmp_name'])) {
-        throw new RuntimeException('อัปโหลดไฟล์ไม่สำเร็จ (ไฟล์อาจใหญ่เกินที่เซิร์ฟเวอร์กำหนด)');
-    }
-    return $f['tmp_name'];
-}
-
 try {
     switch (post_action()) {
-        case 'import':
-            if (!$tmp = uploaded('zip')) {
-                throw new RuntimeException('กรุณาเลือกไฟล์ ZIP');
-            }
-            $n = facilities_import_zip($db, $tmp);
-            audit("นำเข้าข้อมูลอาคารและห้อง (ZIP): อาคาร {$n['buildings']} ห้อง {$n['rooms']} ประเภทห้อง {$n['types']}");
-            flash('success', "นำเข้าสำเร็จ: อาคาร {$n['buildings']} · ห้อง {$n['rooms']} · ห้องย่อย {$n['units']} · ประเภทห้อง {$n['types']} · รูป {$n['images']}");
-            break;
         case 'rtype_save':
             $name = mb_substr(trim((string)($_POST['name'] ?? '')), 0, 100);
             if ($name === '') {
@@ -170,8 +132,7 @@ app_start('สถานะห้องพัก', $me, 'rooms');
   <button type="button" class="btn" data-open="dlgRoom" <?= $buildings ? '' : 'disabled title="เพิ่มอาคารก่อน"' ?>>+ เพิ่มห้อง</button>
   <button type="button" class="btn ghost" data-open="dlgTypes">ประเภทห้อง / รูปห้อง (<?= count($rtypes) ?>)</button>
   <span style="margin-left:auto;display:flex;gap:8px">
-    <a class="btn ghost" href="<?= e(url('rooms.php?export=1')) ?>" title="อาคาร ห้องพัก ห้องประชุม ห้องย่อย ประเภทห้องและรูป">⬇ ส่งออก ZIP</a>
-    <button type="button" class="btn ghost" data-open="dlgImport">⬆ นำเข้า ZIP</button>
+    <a class="btn ghost" href="<?= e(url('facilities.php')) ?>">⇅ นำเข้า / ส่งออกข้อมูล (ZIP)</a>
   </span>
 </div>
 
@@ -290,18 +251,6 @@ app_start('สถานะห้องพัก', $me, 'rooms');
     </div>
   </form>
   <p style="font-size:11.5px;color:#8A8F98">รองรับ JPG, PNG, WEBP, GIF ขนาดไม่เกิน 5 MB</p>
-</dialog>
-<dialog id="dlgImport" class="modal">
-  <form method="post" enctype="multipart/form-data"><?= csrf_field() ?><input type="hidden" name="action" value="import"><input type="hidden" name="b" value="<?= $bid ?>">
-    <div class="modal-h"><b>นำเข้าข้อมูลอาคารและห้อง (ZIP)</b><button type="button" class="modal-x" data-close aria-label="ปิด">✕</button></div>
-    <label>ไฟล์ ZIP ที่ส่งออกจากระบบ</label><input type="file" name="zip" accept=".zip,application/zip" required>
-    <ul style="font-size:12.5px;color:#5B5450;padding-left:18px">
-      <li>อาคารจับคู่ด้วย<b>รหัสอาคาร</b> ห้องจับคู่ด้วย<b>อาคาร + เลขห้อง</b> ประเภทห้องจับคู่ด้วย<b>ชื่อ</b></li>
-      <li>ข้อมูลที่มีอยู่แล้วจะถูกอัปเดต ที่ยังไม่มีจะถูกเพิ่ม — ไม่ลบข้อมูลเดิม</li>
-      <li>สถานะห้องที่มีอยู่แล้วคงเดิม (ใช้สถานะจากไฟล์กับห้องใหม่เท่านั้น)</li>
-    </ul>
-    <div class="modal-f"><button type="button" class="btn ghost" data-close>ยกเลิก</button><button class="btn">นำเข้า</button></div>
-  </form>
 </dialog>
 <dialog id="dlgImg" class="modal modal-lg">
   <div class="modal-h"><b id="imgCap"></b><button type="button" class="modal-x" data-close aria-label="ปิด">✕</button></div>

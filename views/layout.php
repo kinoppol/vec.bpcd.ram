@@ -77,29 +77,27 @@ function page_foot(): void
 function app_start(string $title, array $user, string $active): void
 {
     $r = $user['role'];
-    $nav = [['index.php', 'ภาพรวมระบบ', 'home']];
-    if ($r === 'owner' || $r === 'admin') {
-        $nav[] = ['book.php', 'จองห้องพักและห้องประชุม', 'book'];
-        $nav[] = ['my_bookings.php', 'สถานะการจอง', 'my'];
-    }
-    if ($r === 'caretaker' || $r === 'admin') {
-        $nav[] = ['requests.php', 'คำขอจองห้อง', 'requests'];
-        $nav[] = ['rooms.php', 'สถานะห้องพัก', 'rooms'];
-        $nav[] = ['guests.php', 'จัดผู้เข้าพัก', 'guests'];
-        $nav[] = ['checkin.php', 'Check-in / Check-out', 'checkin'];
-    }
-    if ($r !== 'owner') {
-        $nav[] = ['reports.php', 'รายงาน / Export', 'reports'];
-    }
-    if ($r === 'admin') {
-        $nav[] = ['', 'ผู้ดูแลระบบ', 'grp'];
-        $nav[] = ['admin/ai.php', 'ผู้ช่วย AI (API)', 'ai'];
-        $nav[] = ['admin/settings.php', 'ตั้งค่าการแจ้งเตือน', 'settings'];
-        $nav[] = ['admin/users.php', 'ผู้ใช้งานระบบ', 'users'];
-        $nav[] = ['admin/audit.php', 'บันทึกการใช้งาน', 'audit'];
-        $nav[] = ['admin/migrations.php', 'จัดการฐานข้อมูล (Migrations)', 'migrations', pending_migrations()];
-    }
-    $nav = array_map(fn($n) => $n + [3 => 0], $nav);
+    $owner = $r === 'owner' || $r === 'admin';
+    $care = $r === 'caretaker' || $r === 'admin';
+    // เมนูจัดกลุ่มตามงาน: [ชื่อกลุ่ม|null (ไม่มีกลุ่ม), [[href, label, key, badge?], ...]]
+    $groups = [
+        [null, [['index.php', 'ภาพรวมระบบ', 'home']]],
+        ['การจอง', array_merge(
+            $owner ? [['book.php', 'จองห้องพักและห้องประชุม', 'book'], ['my_bookings.php', 'สถานะการจอง', 'my']] : [],
+            $care ? [['requests.php', 'คำขอจองห้อง', 'requests']] : []
+        )],
+        ['งานผู้เข้าพัก', $care ? [['guests.php', 'จัดผู้เข้าพัก', 'guests'], ['checkin.php', 'Check-in / Check-out', 'checkin']] : []],
+        ['อาคารและห้อง', $care ? [['rooms.php', 'สถานะห้องพัก / ประเภทห้อง', 'rooms'], ['facilities.php', 'นำเข้า / ส่งออกข้อมูล (ZIP)', 'facilities']] : []],
+        ['รายงาน', $r !== 'owner' ? [['reports.php', 'รายงาน / Export', 'reports']] : []],
+        ['ผู้ดูแลระบบ', $r === 'admin' ? [
+            ['admin/users.php', 'ผู้ใช้งานระบบ', 'users'],
+            ['admin/settings.php', 'ตั้งค่าการแจ้งเตือน', 'settings'],
+            ['admin/ai.php', 'ผู้ช่วย AI (API)', 'ai'],
+            ['admin/audit.php', 'บันทึกการใช้งาน', 'audit'],
+            ['admin/migrations.php', 'จัดการฐานข้อมูล (Migrations)', 'migrations', pending_migrations()],
+        ] : []],
+    ];
+    $groups = array_filter($groups, fn($g) => $g[1]);
     page_head($title);
     ?>
 <div class="app">
@@ -107,11 +105,34 @@ function app_start(string $title, array $user, string $active): void
     <div class="logo"><img src="<?= e(url('assets/vec-logo.png')) ?>" alt=""><div>ระบบบริหารที่พัก สสอ.<br><span style="font-weight:400;color:#B79FA3">สอศ.</span></div></div>
     <div class="role"><?= e(Auth::ROLES[$user['role']] ?? $user['role']) ?></div>
     <nav>
-      <?php foreach ($nav as [$href, $label, $key, $badge]): ?>
-        <?php if ($key === 'grp'): ?><div class="grp"><?= e($label) ?></div><?php continue; endif; ?>
-        <a href="<?= e(url($href)) ?>" class="<?= $key === $active ? 'on' : '' ?>"><?= e($label) ?><?php if (!empty($badge)): ?><span class="pill" title="รอดำเนินการ"><?= (int)$badge ?></span><?php endif; ?></a>
+      <?php foreach ($groups as $gi => [$glabel, $items]):
+          $links = '';
+          $has = false;
+          $badges = 0;
+          foreach ($items as $it) {
+              [$href, $label, $key] = $it;
+              $badge = (int)($it[3] ?? 0);
+              $has = $has || $key === $active;
+              $badges += $badge;
+              $links .= '<a href="' . e(url($href)) . '" class="' . ($key === $active ? 'on' : '') . '">' . e($label)
+                  . ($badge ? '<span class="pill" title="รอดำเนินการ">' . $badge . '</span>' : '') . '</a>';
+          }
+          if ($glabel === null) { echo $links; continue; } ?>
+        <details class="ngrp" data-g="<?= $gi ?>" <?= $has ? 'open data-active' : '' ?>>
+          <summary><?= e($glabel) ?><?php if ($badges): ?><span class="pill"><?= $badges ?></span><?php endif; ?></summary>
+          <div class="ngrp-b"><?= $links ?></div>
+        </details>
       <?php endforeach; ?>
     </nav>
+    <script>
+    // จำสถานะยุบ/ขยายของแต่ละกลุ่มเมนู (กลุ่มของหน้าที่เปิดอยู่ขยายเสมอ)
+    (function(){var k='navOpen',s={};try{s=JSON.parse(localStorage.getItem(k)||'{}')}catch(e){}
+      document.querySelectorAll('.ngrp').forEach(function(d){
+        if(!d.hasAttribute('data-active')&&s[d.dataset.g]!==undefined)d.open=!!s[d.dataset.g];
+        else if(!d.hasAttribute('data-active')&&s[d.dataset.g]===undefined)d.open=true;
+        d.addEventListener('toggle',function(){s[d.dataset.g]=d.open?1:0;try{localStorage.setItem(k,JSON.stringify(s))}catch(e){}});
+      });})();
+    </script>
     <a class="out" href="<?= e(url('logout.php')) ?>">ออกจากระบบ</a>
   </aside>
   <div class="main">

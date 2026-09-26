@@ -162,3 +162,12 @@ dialog.modal-lg{width:min(820px,calc(100vw - 32px))}
 .rtype-f input[type=text]{flex:1 1 150px;padding:6px 9px}.rtype-f input[type=file]{flex:1 1 200px;font-size:12px}
 .rtype-new{background:var(--bg);border-radius:10px;padding:10px;border:0;margin-top:6px}
 @media (max-width:600px){.rtype{flex-wrap:wrap}}
+/* เมนูแบบกลุ่ม ยุบ/ขยายได้ */
+.side nav .ngrp summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:11px;color:#B79FA3;padding:12px 12px 4px;letter-spacing:.04em;border-radius:8px;user-select:none}
+.side nav .ngrp summary::-webkit-details-marker{display:none}
+.side nav .ngrp summary::after{content:'▸';margin-left:auto;transition:transform .15s}
+.side nav .ngrp[open] summary::after{transform:rotate(90deg)}
+.side nav .ngrp summary:hover{color:#F3EDEA}
+.side nav .ngrp summary .pill{margin-left:4px}
+.side nav .ngrp-b{display:flex;flex-direction:column;gap:4px}
+@media (max-width:760px){.side nav .ngrp{display:flex;align-items:center}.side nav .ngrp summary{padding:10px 8px;white-space:nowrap}.side nav .ngrp-b{flex-direction:row}}

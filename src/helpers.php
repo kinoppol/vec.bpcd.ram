@@ -62,3 +62,16 @@ function render_flash(): string
     }
     return $out;
 }
+
+/** path ชั่วคราวของไฟล์ที่อัปโหลด หรือ null ถ้าไม่ได้เลือกไฟล์ */
+function uploaded(string $field): ?string
+{
+    $f = $_FILES[$field] ?? null;
+    if (!$f || $f['error'] === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+    if ($f['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($f['tmp_name'])) {
+        throw new RuntimeException('อัปโหลดไฟล์ไม่สำเร็จ (ไฟล์อาจใหญ่เกินที่เซิร์ฟเวอร์กำหนด)');
+    }
+    return $f['tmp_name'];
+}
