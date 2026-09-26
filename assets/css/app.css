@@ -171,3 +171,11 @@ dialog.modal-lg{width:min(820px,calc(100vw - 32px))}
 .side nav .ngrp summary .pill{margin-left:4px}
 .side nav .ngrp-b{display:flex;flex-direction:column;gap:4px}
 @media (max-width:760px){.side nav .ngrp{display:flex;align-items:center}.side nav .ngrp summary{padding:10px 8px;white-space:nowrap}.side nav .ngrp-b{flex-direction:row}}
+/* ไอคอนเมนู */
+.side .ic{width:17px;height:17px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;opacity:.85}
+.side nav a,.side .out{display:flex;align-items:center;gap:10px}
+.side nav a .lb{flex:1;min-width:0}.side nav a .pill{float:none}
+.side nav a.on .ic{opacity:1}
+.side nav .ngrp summary .ic{width:14px;height:14px}
+.side nav .ngrp-b a{padding-left:20px}
+@media (max-width:760px){.side nav .ngrp-b a{padding-left:12px}.side nav .ngrp summary .lb{display:none}}

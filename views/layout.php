@@ -74,28 +74,56 @@ function page_foot(): void
 <?php
 }
 
+/** ไอคอนเมนู (เส้น SVG แบบ Lucide) ตาม key ของเมนู/กลุ่ม */
+function nav_icon(string $key): string
+{
+    static $p = [
+        'home' => '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>',
+        'g-book' => '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+        'book' => '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M12 14v5M9.5 16.5h5"/>',
+        'my' => '<path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/>',
+        'requests' => '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.8 1.1z"/>',
+        'g-guest' => '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
+        'guests' => '<path d="M2 20v-8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v8"/><path d="M4 10V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4M12 4v6M2 17h20"/>',
+        'checkin' => '<circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/>',
+        'g-room' => '<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v8h20v-9a2 2 0 0 0-2-2h-2M10 6h4M10 10h4M10 14h4M10 18h4"/>',
+        'rooms' => '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>',
+        'facilities' => '<path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/><path d="M12 15v4M10 17l2 2 2-2"/>',
+        'g-report' => '<path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/>',
+        'reports' => '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8M8 9h2"/>',
+        'g-admin' => '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+        'users' => '<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>',
+        'settings' => '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/>',
+        'ai' => '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>',
+        'audit' => '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+        'migrations' => '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/>',
+        'logout' => '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+    ];
+    return '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">' . ($p[$key] ?? '<circle cx="12" cy="12" r="3"/>') . '</svg>';
+}
+
 function app_start(string $title, array $user, string $active): void
 {
     $r = $user['role'];
     $owner = $r === 'owner' || $r === 'admin';
     $care = $r === 'caretaker' || $r === 'admin';
-    // เมนูจัดกลุ่มตามงาน: [ชื่อกลุ่ม|null (ไม่มีกลุ่ม), [[href, label, key, badge?], ...]]
+    // เมนูจัดกลุ่มตามงาน: [ชื่อกลุ่ม|null (ไม่มีกลุ่ม), [[href, label, key, badge?], ...], ไอคอนกลุ่ม]
     $groups = [
-        [null, [['index.php', 'ภาพรวมระบบ', 'home']]],
+        [null, [['index.php', 'ภาพรวมระบบ', 'home']], ''],
         ['การจอง', array_merge(
             $owner ? [['book.php', 'จองห้องพักและห้องประชุม', 'book'], ['my_bookings.php', 'สถานะการจอง', 'my']] : [],
             $care ? [['requests.php', 'คำขอจองห้อง', 'requests']] : []
-        )],
-        ['งานผู้เข้าพัก', $care ? [['guests.php', 'จัดผู้เข้าพัก', 'guests'], ['checkin.php', 'Check-in / Check-out', 'checkin']] : []],
-        ['อาคารและห้อง', $care ? [['rooms.php', 'สถานะห้องพัก / ประเภทห้อง', 'rooms'], ['facilities.php', 'นำเข้า / ส่งออกข้อมูล (ZIP)', 'facilities']] : []],
-        ['รายงาน', $r !== 'owner' ? [['reports.php', 'รายงาน / Export', 'reports']] : []],
+        ), 'g-book'],
+        ['งานผู้เข้าพัก', $care ? [['guests.php', 'จัดผู้เข้าพัก', 'guests'], ['checkin.php', 'Check-in / Check-out', 'checkin']] : [], 'g-guest'],
+        ['อาคารและห้อง', $care ? [['rooms.php', 'สถานะห้องพัก / ประเภทห้อง', 'rooms'], ['facilities.php', 'นำเข้า / ส่งออกข้อมูล (ZIP)', 'facilities']] : [], 'g-room'],
+        ['รายงาน', $r !== 'owner' ? [['reports.php', 'รายงาน / Export', 'reports']] : [], 'g-report'],
         ['ผู้ดูแลระบบ', $r === 'admin' ? [
             ['admin/users.php', 'ผู้ใช้งานระบบ', 'users'],
             ['admin/settings.php', 'ตั้งค่าการแจ้งเตือน', 'settings'],
             ['admin/ai.php', 'ผู้ช่วย AI (API)', 'ai'],
             ['admin/audit.php', 'บันทึกการใช้งาน', 'audit'],
             ['admin/migrations.php', 'จัดการฐานข้อมูล (Migrations)', 'migrations', pending_migrations()],
-        ] : []],
+        ] : [], 'g-admin'],
     ];
     $groups = array_filter($groups, fn($g) => $g[1]);
     page_head($title);
@@ -105,7 +133,7 @@ function app_start(string $title, array $user, string $active): void
     <div class="logo"><img src="<?= e(url('assets/vec-logo.png')) ?>" alt=""><div>ระบบบริหารที่พัก สสอ.<br><span style="font-weight:400;color:#B79FA3">สอศ.</span></div></div>
     <div class="role"><?= e(Auth::ROLES[$user['role']] ?? $user['role']) ?></div>
     <nav>
-      <?php foreach ($groups as $gi => [$glabel, $items]):
+      <?php foreach ($groups as $gi => [$glabel, $items, $gicon]):
           $links = '';
           $has = false;
           $badges = 0;
@@ -114,12 +142,12 @@ function app_start(string $title, array $user, string $active): void
               $badge = (int)($it[3] ?? 0);
               $has = $has || $key === $active;
               $badges += $badge;
-              $links .= '<a href="' . e(url($href)) . '" class="' . ($key === $active ? 'on' : '') . '">' . e($label)
+              $links .= '<a href="' . e(url($href)) . '" class="' . ($key === $active ? 'on' : '') . '">' . nav_icon($key) . '<span class="lb">' . e($label) . '</span>'
                   . ($badge ? '<span class="pill" title="รอดำเนินการ">' . $badge . '</span>' : '') . '</a>';
           }
           if ($glabel === null) { echo $links; continue; } ?>
         <details class="ngrp" data-g="<?= $gi ?>" <?= $has ? 'open data-active' : '' ?>>
-          <summary><?= e($glabel) ?><?php if ($badges): ?><span class="pill"><?= $badges ?></span><?php endif; ?></summary>
+          <summary><?= nav_icon($gicon) ?><span class="lb"><?= e($glabel) ?></span><?php if ($badges): ?><span class="pill"><?= $badges ?></span><?php endif; ?></summary>
           <div class="ngrp-b"><?= $links ?></div>
         </details>
       <?php endforeach; ?>
@@ -133,7 +161,7 @@ function app_start(string $title, array $user, string $active): void
         d.addEventListener('toggle',function(){s[d.dataset.g]=d.open?1:0;try{localStorage.setItem(k,JSON.stringify(s))}catch(e){}});
       });})();
     </script>
-    <a class="out" href="<?= e(url('logout.php')) ?>">ออกจากระบบ</a>
+    <a class="out" href="<?= e(url('logout.php')) ?>"><?= nav_icon('logout') ?>ออกจากระบบ</a>
   </aside>
   <div class="main">
     <div class="top"><b><?= e($title) ?></b>
