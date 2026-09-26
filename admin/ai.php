@@ -93,8 +93,29 @@ $logs = $db->query('SELECT a.*,u.full_name FROM ai_log a LEFT JOIN users u ON u.
 $total = (float)$db->query('SELECT COALESCE(SUM(cost),0) FROM ai_log')->fetchColumn();
 $jsProfiles = array_map(fn($p) => ['id' => (int)$p['id'], 'name' => $p['name'], 'provider' => $p['provider'], 'base_url' => $p['base_url'], 'model' => $p['model']], $profiles);
 
+// ตรวจ PHP extension ที่ต้องใช้เชื่อมต่อ API ของ AI
+$curlSsl = function_exists('curl_version') && (curl_version()['features'] & CURL_VERSION_SSL);
+$reqs = [
+    ['curl', extension_loaded('curl'), 'ใช้เรียก API ของ AI (จำเป็น)'],
+    ['curl + SSL/HTTPS', (bool)$curlSsl, 'curl ต้องรองรับ HTTPS เพื่อเชื่อมต่อ https://…'],
+    ['openssl', extension_loaded('openssl'), 'ใช้เข้ารหัสการเชื่อมต่อ HTTPS'],
+    ['json', function_exists('json_encode'), 'ใช้รับ-ส่งข้อมูลกับ API'],
+    ['mbstring', extension_loaded('mbstring'), 'ใช้จัดการข้อความภาษาไทย'],
+];
+$reqFail = array_filter($reqs, fn($r) => !$r[1]);
+
 app_start('ผู้ช่วย AI (API)', $me, 'ai');
 ?>
+<div class="card" style="margin-bottom:16px<?= $reqFail ? ';border:1px solid #c0392b' : '' ?>">
+  <b>แพ็กเกจที่จำเป็นสำหรับการเชื่อมต่อ</b>
+  <span style="font-size:12px;color:<?= $reqFail ? '#c0392b' : '#2e7d32' ?>"> — <?= $reqFail ? 'ขาด ' . count($reqFail) . ' รายการ: ติดตั้ง/เปิดใช้ใน php.ini แล้วรีสตาร์ตเว็บเซิร์ฟเวอร์' : 'พร้อมใช้งานครบ' ?></span>
+  <ul style="margin:8px 0 0;padding-left:0;list-style:none;font-size:13px">
+    <?php foreach ($reqs as [$n, $ok, $d]): ?>
+      <li><?= $ok ? '✅' : '❌' ?> <b><?= e($n) ?></b> <span style="color:#8A8F98">— <?= e($d) ?></span></li>
+    <?php endforeach; ?>
+  </ul>
+  <div style="font-size:12px;color:#8A8F98;margin-top:6px">PHP <?= e(PHP_VERSION) ?><?= function_exists('curl_version') ? ' · curl ' . e(curl_version()['version']) . ' · ' . e((string)curl_version()['ssl_version']) : '' ?></div>
+</div>
 <div class="actions" style="margin-bottom:16px"><button type="button" class="btn" id="btnAdd">+ เพิ่ม API</button></div>
 
 <div class="card" style="padding:0;overflow:auto"><table>
