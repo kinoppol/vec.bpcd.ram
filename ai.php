@@ -14,7 +14,7 @@ function out(string $msg, int $code = 200, array $extra = []): never
 set_exception_handler(function (Throwable $e) {
     error_log('ai.php: ' . $e);
     $missing = $e instanceof PDOException && in_array((string)$e->getCode(), ['42S02', '42S22'], true);
-    out($missing ? 'ฐานข้อมูลยังไม่ได้ปรับปรุงเป็นเวอร์ชันล่าสุด — ให้ผู้ดูแลระบบรัน Migrations ที่เมนู "การปรับปรุงฐานข้อมูล" แล้วลองใหม่' : 'เกิดข้อผิดพลาดภายในระบบ กรุณาลองใหม่หรือแจ้งผู้ดูแลระบบ', 500);
+    out($missing ? 'ฐานข้อมูลยังไม่ได้ปรับปรุงเป็นเวอร์ชันล่าสุด — ให้ผู้ดูแลระบบรัน Migrations ที่เมนู "การปรับปรุงฐานข้อมูล" แล้วลองใหม่' : 'เกิดข้อผิดพลาดภายในระบบ กรุณาลองใหม่หรือแจ้งผู้ดูแลระบบ', 200, ['error' => true]);
 });
 
 $me = Auth::user() ?? out('กรุณาเข้าสู่ระบบ', 401);
@@ -137,7 +137,7 @@ $res = ai_chat([
     ['role' => 'user', 'content' => $q],
 ], $cfg, ($isAdmin && $batch) ? 8192 : 2048);
 if (!$res['ok']) {
-    out('เรียกใช้บริการ AI ไม่สำเร็จ (' . $prof['name'] . ': ' . $res['text'] . ')', 502, $via);
+    out('เรียกใช้บริการ AI ไม่สำเร็จ (' . $prof['name'] . ': ' . $res['text'] . ')', 200, $via + ['error' => true]);
 }
 $db->prepare('INSERT INTO ai_log (user_id,prompt,profile,cost) VALUES (?,?,?,?)')->execute([$me['id'], mb_substr($q, 0, 500), $prof['name'], (float)setting('ai_cost', '5')]);
 
