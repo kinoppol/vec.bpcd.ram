@@ -146,18 +146,17 @@ function app_start(string $title, array $user, string $active): void
                   . ($badge ? '<span class="pill" title="รอดำเนินการ">' . $badge . '</span>' : '') . '</a>';
           }
           if ($glabel === null) { echo $links; continue; } ?>
-        <details class="ngrp" data-g="<?= $gi ?>" <?= $has ? 'open data-active' : '' ?>>
+        <details class="ngrp" data-g="<?= $gi ?>" <?= $has ? 'data-active' : '' ?>>
           <summary><?= nav_icon($gicon) ?><span class="lb"><?= e($glabel) ?></span><?php if ($badges): ?><span class="pill"><?= $badges ?></span><?php endif; ?></summary>
           <div class="ngrp-b"><?= $links ?></div>
         </details>
       <?php endforeach; ?>
     </nav>
     <script>
-    // จำสถานะยุบ/ขยายของแต่ละกลุ่มเมนู (กลุ่มของหน้าที่เปิดอยู่ขยายเสมอ)
+    // เริ่มต้นยุบทุกกลุ่ม แล้วจำสถานะยุบ/ขยายตามที่ผู้ใช้กดไว้
     (function(){var k='navOpen',s={};try{s=JSON.parse(localStorage.getItem(k)||'{}')}catch(e){}
       document.querySelectorAll('.ngrp').forEach(function(d){
-        if(!d.hasAttribute('data-active')&&s[d.dataset.g]!==undefined)d.open=!!s[d.dataset.g];
-        else if(!d.hasAttribute('data-active')&&s[d.dataset.g]===undefined)d.open=true;
+        d.open=!!s[d.dataset.g];
         d.addEventListener('toggle',function(){s[d.dataset.g]=d.open?1:0;try{localStorage.setItem(k,JSON.stringify(s))}catch(e){}});
       });})();
     </script>

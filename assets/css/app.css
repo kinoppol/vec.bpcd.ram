@@ -179,3 +179,5 @@ dialog.modal-lg{width:min(820px,calc(100vw - 32px))}
 .side nav .ngrp summary .ic{width:14px;height:14px}
 .side nav .ngrp-b a{padding-left:20px}
 @media (max-width:760px){.side nav .ngrp-b a{padding-left:12px}.side nav .ngrp summary .lb{display:none}}
+.side nav .ngrp[data-active]>summary{color:#fff}
+.side nav .ngrp[data-active]:not([open])>summary{background:var(--brand)}
